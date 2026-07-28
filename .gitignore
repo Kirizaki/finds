@@ -2,6 +2,10 @@
 
 # pytest
 *__pycache__
+*.pytest_cache
+
+# lint
+*.ruff_cache
 
 # other
 *.DS_Store
