@@ -1,0 +1,3 @@
+# finds - Copyright (c) 2026 Kirizaki
+
+# utils placeholder...
