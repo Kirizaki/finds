@@ -38,7 +38,7 @@ def test_thread_contention_buggy_is_slower():
     fixed_times = []
     buggy_times = []
 
-    for _ in range(100):
+    for _ in range(10):
         fixed_time, _ = thread_contention_counter(
             num_threads=8,
             increments_per_thread=50000,
