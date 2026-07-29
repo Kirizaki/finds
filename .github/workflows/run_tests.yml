@@ -1,5 +1,5 @@
 # finds - Copyright (c) 2026 Kirizaki
-name: Linter check
+name: Run tests
 
 on:
   push:
@@ -23,6 +23,11 @@ jobs:
       run: |
         pip install -r requirements.txt
 
+    # TODO: Add comment trigger to add '--fix' param!
     - name: Run lint
       run: |
         ruff check .
+
+    - name: Run tests
+      run: |
+        pytest -v
