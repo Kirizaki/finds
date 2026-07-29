@@ -95,12 +95,3 @@ def fixed_case(num_buckets: int, counters: int, num_threads: int, increments_per
         totals = {b: counters[b] for b in range(num_buckets)}
         return elapsed, totals
 
-if __name__ == "__main__":
-    elapsed, totals = thread_contention_counter(8, 50000, buggy=True)
-    print(f"time elapsed: {elapsed} [s]")
-    print(f"sum of count: {sum(totals.values())}")
-
-    elapsed, totals = thread_contention_counter(8, 50000, buggy=False)
-    print(f"time elapsed: {elapsed} [s]")
-    print(f"sum of count: {sum(totals.values())}")
-
