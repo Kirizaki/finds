@@ -4,14 +4,14 @@
 #   2. I/O contention - competing disk or network access causing throughput collapse or latency spikes.
 #   3. CPU contention - compute-bound tasks starving each other, poor scheduling, or cache thrashing.
 
-import time
 import threading
-from typing import Dict
+import time
+
 
 def thread_contention_counter(
         num_threads: int = 8,
         increments_per_thread: int = 5000,
-        buggy: bool = False) -> tuple[float, Dict[int, int]]:
+        buggy: bool = False) -> tuple[float, dict[int, int]]:
     """
     Increment a shared counter from many threads (hot-lock).
     Example applications: multiple threads/processes/servers
