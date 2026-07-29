@@ -24,6 +24,8 @@ def thread_contention_counter(
 
     Returns (elapsed time, bucket totals).
 
+    TODO: Could add instrumented lock as arg, to ie. record acquire/release timestamps?
+
     NOTE: As this case is trivial, it shows real solution of solving hot-locks
           by 'sharding' the shared mutable. Other case of hot-locks would be
           a LRU (Least Recently Used) Cache, with 'fine-grained locking'.
@@ -52,7 +54,6 @@ def _start_and_join_threads(threads: threading.Thread):
 
 def buggy_case(num_buckets: int, counters: int, num_threads: int, increments_per_thread: int):
     # one global lock - all threads serialise
-    # TODO: Could pass as arg instrumented lock, to ie. record acquire/release timestamps?
     global_lock = threading.Lock()
 
     def _worker():
@@ -93,13 +94,4 @@ def fixed_case(num_buckets: int, counters: int, num_threads: int, increments_per
 
         totals = {b: counters[b] for b in range(num_buckets)}
         return elapsed, totals
-
-if __name__ == "__main__":
-    elapsed, totals = thread_contention_counter(8, 50000, buggy=True)
-    print(f"time elapsed: {elapsed} [s]")
-    print(f"sum of count: {sum(totals.values())}")
-
-    elapsed, totals = thread_contention_counter(8, 50000, buggy=False)
-    print(f"time elapsed: {elapsed} [s]")
-    print(f"sum of count: {sum(totals.values())}")
 
