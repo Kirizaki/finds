@@ -154,7 +154,7 @@ def io_contention_disk_spammer():
           Real-world example would be multiple clients uploading
           large files to the same SSD/NAS and typical mitigation
           technique would be:
-          - imiting concurrent writers (semaphore - as in example).
+          - limiting concurrent writers (semaphore - as in example).
           - separating workloads onto different storage devices.
     """
     threads = []
