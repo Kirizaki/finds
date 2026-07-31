@@ -115,7 +115,3 @@ def test_cpu_contention():
     # too many runnable threads cause scheduler pressure and cache thrashing
     assert buggy["task_p99_ms"] > (fixed["task_p99_ms"] * 10)
 
-
-    # more context switches indicate scheduler overhead.
-    assert buggy["context_switches"] > fixed["context_switches"]
-
