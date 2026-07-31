@@ -6,13 +6,9 @@
 import os
 import threading
 import time
+
 from pathlib import Path
 
-DIR = Path("./lab/artifacts/")
-DIR.mkdir(exist_ok=True)
-THREADS = 6
-FILE_SIZE_MB = 1024
-BLOCK = 1024 * 1024  # 1 MB
 global_lock = threading.Lock()
 MAX_WRITERS = 2
 disk_sem = threading.Semaphore(MAX_WRITERS)
@@ -112,26 +108,38 @@ def thread_contention_fixed_case(num_buckets: int, counters: int, num_threads: i
 
 ###### I/O contention ######
 
-def writer(worker_id):
-    with disk_sem:
-        path = DIR / f"file_{worker_id}"
+def writer(worker_id: int, file_size_mb: int, block_size: int, destination: Path):
+    path = destination / f"file_{worker_id}"
 
-        print(f"start {worker_id}")
+    print(f"start {worker_id}")
 
-        with open(path, "wb", buffering=0) as f:
-            for i in range(FILE_SIZE_MB):
-                f.write(os.urandom(BLOCK))
+    with open(path, "wb", buffering=0) as f:
+        for i in range(file_size_mb):
+            f.write(os.urandom(block_size))
 
-                if i % 100 == 0:
-                    print(f"worker {worker_id}: {i} MB")
+            if i % 100 == 0:
+                print(f"worker {worker_id}: {i} MB")
 
-            print(f"fsync {worker_id}")
-            os.fsync(f.fileno())
+        print(f"fsync {worker_id}")
+        os.fsync(f.fileno())
 
-        print(f"done {worker_id}")
+    print(f"done {worker_id}")
 
 
-def io_contention_disk_spammer():
+def spam(worker_id: int, file_size_mb: int, block_size: int, destination: Path, buggy: bool):
+    if buggy:
+        writer(worker_id, file_size_mb, block_size, destination)
+    else:
+        with disk_sem:
+            writer(worker_id, file_size_mb, block_size, destination)
+
+
+def io_contention_disk_spammer(
+        destination: Path,
+        num_threads: int = 8,
+        file_size_mb: int = 1024,
+        block_size: int = 1024 * 1024,  # 1 MB
+        buggy: bool = False):
     """
     Generate heavy concurrent disk writes to create I/O contention.
     Example applications: multiple upload workers/processes/servers
@@ -157,21 +165,22 @@ def io_contention_disk_spammer():
           - separating workloads onto different storage devices.
     """
     threads = []
-    start = time.time()
+    start = time.perf_counter()
 
-    for i in range(THREADS):
-        t = threading.Thread(target=writer, args=(i,))
+    for i in range(num_threads):
+        t = threading.Thread(
+            target=spam,
+            args=(i, file_size_mb, block_size, destination, buggy))
         threads.append(t)
-        t.start()
 
-    for t in threads:
-        t.join()
+    _start_and_join_threads(threads)
+    elapsed = time.perf_counter() - start
 
-    print("elapsed:", time.time() - start)
+    return elapsed
 
 
-def clean_artifacts():
-    for item in DIR.iterdir():
+def clean_artifacts(destination: Path):
+    for item in destination.iterdir():
         if item.is_file():
             item.unlink()
 
