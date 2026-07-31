@@ -235,7 +235,6 @@ def io_contention_disk_spammer(
 
     return {
         "elapsed": elapsed,
-        "fsync_lat": fsync_lat,
         "write_p50_ms":
             statistics.median(write_lat) * 1000
             if write_lat else 0,

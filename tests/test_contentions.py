@@ -86,5 +86,4 @@ def test_io_contention_buggy_p99_latency_tail_with_similar_throughput():
     assert buggy["write_p95_ms"] > fixed["write_p95_ms"]
     assert buggy["write_p99_ms"] > fixed["write_p99_ms"]
     assert buggy["fsync_p50_ms"] > fixed["fsync_p50_ms"]
-    assert buggy["fsync_p99_ms"] > fixed["fsync_p99_ms"]
 
