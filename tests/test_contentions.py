@@ -80,12 +80,11 @@ def test_io_contention_buggy_p99_latency_tail_with_similar_throughput():
         buggy["throughput_mb_s"] /
         fixed["throughput_mb_s"]
     )
-    if 0.85 <= throughput_ratio <= 1.15:
+    if not (0.85 <= throughput_ratio <= 1.15):
         print(f"Warning: Expected throughput to be similar, but got: "
               f"fixed={fixed['throughput_mb_s']:.2f} MB/s "
               f"buggy={buggy['throughput_mb_s']:.2f} MB/s "
-              f"ratio={throughput_ratio:.2f}"
-              )
+              f"ratio={throughput_ratio:.2f}")
 
     # write p99 = tail latency:
     # - retries
