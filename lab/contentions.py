@@ -6,7 +6,6 @@
 import os
 import threading
 import time
-
 from pathlib import Path
 
 global_lock = threading.Lock()
