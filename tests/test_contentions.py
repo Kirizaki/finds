@@ -77,7 +77,7 @@ def test_io_contention_buggy_is_slower():
         fixed_time = io_contention_disk_spammer(
             destination=destination,
             num_threads=16,
-            file_size_mb=1024,
+            file_size_mb=4096,  # 64 GB
             block_size=1024 * 1024,  # 1 MB
             buggy=False
         )
@@ -87,7 +87,7 @@ def test_io_contention_buggy_is_slower():
         buggy_time  = io_contention_disk_spammer(
             destination=destination,
             num_threads=16,
-            file_size_mb=1024,
+            file_size_mb=4096,  # 64 GB
             block_size=1024 * 1024,  # 1 MB
             buggy=True
         )
@@ -139,7 +139,7 @@ def test_io_contention_buggy_has_higher_iowait():
         io_contention_disk_spammer(
             destination=Path("./lab/artifacts/"),
             num_threads=16,
-            file_size_mb=1024,
+            file_size_mb=4096,  # 64 GB
             block_size=1024 * 1024,
             buggy=buggy
         )

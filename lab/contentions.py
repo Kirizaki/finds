@@ -120,6 +120,7 @@ def writer(worker_id: int, file_size_mb: int, block_size: int, destination: Path
                 print(f"worker {worker_id}: {i} MB")
 
         print(f"fsync {worker_id}")
+        f.flush()
         os.fsync(f.fileno())
 
     print(f"done {worker_id}")
@@ -136,7 +137,7 @@ def spam(worker_id: int, file_size_mb: int, block_size: int, destination: Path, 
 def io_contention_disk_spammer(
         destination: Path,
         num_threads: int = 8,
-        file_size_mb: int = 1024,
+        file_size_mb: int = 4096,  # 64 GB
         block_size: int = 1024 * 1024,  # 1 MB
         buggy: bool = False):
     """
