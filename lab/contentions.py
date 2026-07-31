@@ -6,13 +6,11 @@
 import os
 import threading
 import time
+import statistics
 from pathlib import Path
+from tools.io_stats import IOStats
+from threading import Lock, Semaphore, Thread
 
-DIR = Path("./lab/artifacts/")
-DIR.mkdir(exist_ok=True)
-THREADS = 6
-FILE_SIZE_MB = 1024
-BLOCK = 1024 * 1024  # 1 MB
 global_lock = threading.Lock()
 MAX_WRITERS = 2
 disk_sem = threading.Semaphore(MAX_WRITERS)
@@ -112,71 +110,71 @@ def thread_contention_fixed_case(num_buckets: int, counters: int, num_threads: i
 
 ###### I/O contention ######
 
-def writer(worker_id):
-    with disk_sem:
-        path = DIR / f"file_{worker_id}"
+def writer(worker_id: int, file_size_mb: int, block_size: int, destination: Path, stats: IOStats):
+    path = destination / f"file_{worker_id}"
+    stats.writer_started()
 
-        print(f"start {worker_id}")
-
-        with open(path, "wb", buffering=0) as f:
-            for i in range(FILE_SIZE_MB):
-                f.write(os.urandom(BLOCK))
-
-                if i % 100 == 0:
-                    print(f"worker {worker_id}: {i} MB")
-
-            print(f"fsync {worker_id}")
+    with open(path, "wb", buffering=0) as f:
+        for _ in range(file_size_mb):
+            data = os.urandom(block_size)
+            # write & fsync latency is important for storage contention measurements
+            # because it exposes end-to-end commit latency.
+            # In NAS systems, contention can happen at the network layer,
+            # filesystem layer, RAID/controller queues, storage tiers or disks.
+            start = time.perf_counter()
+            f.write(data)
+            latency = time.perf_counter() - start
+            stats.add_write_latency(latency)
+            stats.add_bytes(block_size)
+            f.flush()
             os.fsync(f.fileno())
 
-        print(f"done {worker_id}")
+        stats.writer_finished()
 
 
-def io_contention_disk_spammer():
-    """
-    Generate heavy concurrent disk writes to create I/O contention.
-    Example applications: multiple upload workers/processes/servers
-                        writing large files to the same storage device.
+def spam(worker_id: int, file_size_mb: int, block_size: int, destination: Path,
+         buggy: bool, disk_sem: Semaphore, stats: IOStats):
+    if buggy:  # all writers hit storage simultaneously
+        writer(worker_id, file_size_mb, block_size, destination, stats)
+    else:  # controlled concurrency
+        with disk_sem:
+            writer(worker_id, file_size_mb, block_size, destination, stats)
 
-    Args:
-        buggy: If True, all workers write simultaneously, saturating
-            the storage subsystem (queue depth, bandwidth, device latency).
-            If False, concurrency is limited (e.g. semaphore/thread pool),
-            reducing I/O contention while preserving throughput.
 
-    Returns:
-        Elapsed execution time.
+def io_contention_disk_spammer(destination: Path, num_threads: int = 64, file_size_mb: int = 1024,
+                               block_size: int = 1024 * 1024, buggy: bool = False):
+    stats = IOStats()
 
-    TODO: Could collect per-thread write latency, IOPS, throughput,
-        queue depth, or block-layer statistics.
+    # simulate storage controller queue depth limit
+    disk_sem = Semaphore(16)
 
-    NOTE: This is a simplified reproduction of storage contention.
-          Real-world example would be multiple clients uploading
-          large files to the same SSD/NAS and typical mitigation
-          technique would be:
-          - limiting concurrent writers (semaphore - as in example).
-          - separating workloads onto different storage devices.
-    """
     threads = []
-    start = time.time()
+    start = time.perf_counter()
 
-    for i in range(THREADS):
-        t = threading.Thread(target=writer, args=(i,))
+    for i in range(num_threads):
+        t = Thread(target=spam, args=(i, file_size_mb, block_size, destination, buggy, disk_sem, stats))
         threads.append(t)
-        t.start()
 
-    for t in threads:
-        t.join()
+    _start_and_join_threads(threads)
+    elapsed = time.perf_counter() - start
 
-    print("elapsed:", time.time() - start)
+    write_lat = stats.write_latencies
+
+    def percentile(values, p):
+        if not values:
+            return 0
+        return (statistics.quantiles(values, n=100)[p - 1])
+
+    return {
+        "elapsed": elapsed,
+        "write_p99_ms": percentile(write_lat, 99) * 1000,
+        "throughput_mb_s": stats.bytes_written / elapsed / (1024 * 1024),
+        "queue_depth": stats.max_queue_depth,
+    }
 
 
-def clean_artifacts():
-    for item in DIR.iterdir():
+def clean_artifacts(destination: Path):
+    for item in destination.iterdir():
         if item.is_file():
             item.unlink()
-
-
-if __name__ == "__main__":
-    io_contention_disk_spammer()
-    clean_artifacts()
 

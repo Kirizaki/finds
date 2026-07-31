@@ -2,7 +2,8 @@
 
 import statistics
 
-from lab.contentions import thread_contention_counter
+from pathlib import Path
+from lab.contentions import thread_contention_counter, io_contention_disk_spammer, clean_artifacts
 
 
 def test_thread_contention_fixed_is_correct():
@@ -60,3 +61,29 @@ def test_thread_contention_buggy_is_slower():
           f"buggy={buggy_median:.4f}s  median ratio={ratio:.2f}x")
     assert ratio > 1.15, (f"Expected buggy path to be >1.15x slower, but got {ratio:.2f}")
 
+def test_io_contention_buggy_p99_latency_tail_with_similar_throughput():
+    destination = Path("./lab/artifacts/")
+    destination.mkdir(exist_ok=True)
+    fixed = io_contention_disk_spammer(destination=destination, buggy=False)
+    buggy = io_contention_disk_spammer(destination=destination, buggy=True)
+
+    print("\n  Fixed (bounded concurrency):\n"f"{fixed}")
+    print("\n  Buggy (unbounded concurrency):\n"f"{buggy}")
+
+    # verify bounded concurrency in fixed case
+    assert fixed["queue_depth"] < buggy["queue_depth"]
+
+    # fixed case should maintain at least 80% of buggy throughput
+    assert fixed["throughput_mb_s"] >= buggy["throughput_mb_s"] * 0.8
+
+    # write p99 = tail latency:
+    # - retries
+    # - timeouts
+    # - queues build
+    # - systems cascade
+    assert buggy["write_p99_ms"] > fixed["write_p99_ms"]
+
+    # NOTE: as fsync depends heavily on fs, virtualization,
+    #       storage backend, or runner environment,
+    #       we should omit that, or apply based on specific infra.
+    # assert buggy["fsync_p99_ms"] > fixed["fsync_p99_ms"]
