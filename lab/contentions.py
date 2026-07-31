@@ -168,7 +168,7 @@ def io_contention_disk_spammer(destination: Path, num_threads: int = 64, file_si
     return {
         "elapsed": elapsed,
         "write_p99_ms": percentile(write_lat, 99) * 1000,
-        "throughput_mb_s": stats.bytes_written / elapsed / block_size,
+        "throughput_mb_s": stats.bytes_written / elapsed / (1024 * 1024),
         "queue_depth": stats.max_queue_depth,
     }
 
