@@ -180,7 +180,7 @@ def spam(
 
 def io_contention_disk_spammer(
     destination: Path,
-    num_threads: int = 128,
+    num_threads: int = 64,
     file_size_mb: int = 1024,
     block_size: int = 1024 * 1024,
     buggy: bool = False
@@ -232,7 +232,6 @@ def io_contention_disk_spammer(
 
     return {
         "elapsed": elapsed,
-        "write_lat": write_lat,
         "fsync_lat": fsync_lat,
         "write_p50_ms":
             statistics.median(write_lat) * 1000

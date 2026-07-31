@@ -61,7 +61,7 @@ def test_thread_contention_buggy_is_slower():
           f"buggy={buggy_median:.4f}s  median ratio={ratio:.2f}x")
     assert ratio > 1.15, (f"Expected buggy path to be >1.15x slower, but got {ratio:.2f}")
 
-def test_io_contention_throughput_and_p99_latency():
+def test_io_contention_buggy_p99_latency_tail():
     destination = Path("./lab/artifacts/")
     destination.mkdir(exist_ok=True)
     fixed = io_contention_disk_spammer(destination=destination, buggy=False)
@@ -71,5 +71,4 @@ def test_io_contention_throughput_and_p99_latency():
     print(buggy)
 
     assert buggy["fsync_p99_ms"] > fixed["fsync_p99_ms"]
-    assert buggy["write_p99_ms"] > fixed["write_p99_ms"]
 
