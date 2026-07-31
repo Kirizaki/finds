@@ -76,7 +76,7 @@ def test_io_contention_buggy_is_slower():
     for _ in range(3):
         fixed_time = io_contention_disk_spammer(
             destination=destination,
-            num_threads=6,
+            num_threads=16,
             file_size_mb=1024//10,
             block_size=1024 * 1024,  # 1 MB
             buggy=False
@@ -86,7 +86,7 @@ def test_io_contention_buggy_is_slower():
 
         buggy_time  = io_contention_disk_spammer(
             destination=destination,
-            num_threads=6,
+            num_threads=16,
             file_size_mb=1024//10,
             block_size=1024 * 1024,  # 1 MB
             buggy=True
