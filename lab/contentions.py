@@ -215,8 +215,6 @@ def cpu_worker(buffer: bytes, iterations: int, metrics: dict):
     global active_workers, peak_workers
 
     with workers_lock:
-        print(f"active_workers: {active_workers}")
-        print(f"peak_workers: {peak_workers}")
         active_workers += 1
         peak_workers = max(peak_workers, active_workers)
 
