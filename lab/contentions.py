@@ -3,11 +3,10 @@
 # TODO:
 #   3. CPU contention - compute-bound tasks starving each other, poor scheduling, or cache thrashing.
 
+from pathlib import Path
 import os
 import threading
 import time
-
-from pathlib import Path
 
 
 DIR = Path("./lab/artifacts/")
