@@ -1,12 +1,24 @@
 # finds - Copyright (c) 2026 Kirizaki
 #
 # TODO:
-#   2. I/O contention - competing disk or network access causing throughput collapse or latency spikes.
 #   3. CPU contention - compute-bound tasks starving each other, poor scheduling, or cache thrashing.
 
+import os
 import threading
 import time
 
+from pathlib import Path
+
+DIR = Path("./lab/artifacts/")
+DIR.mkdir(exist_ok=True)
+THREADS = 6
+FILE_SIZE_MB = 1024
+BLOCK = 1024 * 1024  # 1 MB
+global_lock = threading.Lock()
+MAX_WRITERS = 2
+disk_sem = threading.Semaphore(MAX_WRITERS)
+
+###### thread contention ######
 
 def thread_contention_counter(
         num_threads: int = 8,
@@ -42,9 +54,10 @@ def thread_contention_counter(
     counters = [0] * num_buckets  # shared mutable state across all threads
 
     if buggy:
-        return buggy_case(num_buckets, counters, num_threads, increments_per_thread)
+        return thread_contention_buggy_case(num_buckets, counters, num_threads, increments_per_thread)
     else:
-        return fixed_case(num_buckets, counters, num_threads, increments_per_thread)
+        return thread_contention_fixed_case(num_buckets, counters, num_threads, increments_per_thread)
+
 
 def _start_and_join_threads(threads: threading.Thread):
     for t in threads:
@@ -52,7 +65,8 @@ def _start_and_join_threads(threads: threading.Thread):
     for t in threads:
         t.join()
 
-def buggy_case(num_buckets: int, counters: int, num_threads: int, increments_per_thread: int):
+
+def thread_contention_buggy_case(num_buckets: int, counters: int, num_threads: int, increments_per_thread: int):
     # one global lock - all threads serialise
     global_lock = threading.Lock()
 
@@ -70,7 +84,8 @@ def buggy_case(num_buckets: int, counters: int, num_threads: int, increments_per
     totals = {b: counters[b] for b in range(num_buckets)}
     return elapsed, totals
 
-def fixed_case(num_buckets: int, counters: int, num_threads: int, increments_per_thread: int):
+
+def thread_contention_fixed_case(num_buckets: int, counters: int, num_threads: int, increments_per_thread: int):
         # no shared state (thread has private counters, merged at end)
         thread_counters = [None] * num_threads
 
@@ -94,4 +109,75 @@ def fixed_case(num_buckets: int, counters: int, num_threads: int, increments_per
 
         totals = {b: counters[b] for b in range(num_buckets)}
         return elapsed, totals
+
+
+###### I/O contention ######
+
+def writer(worker_id):
+    with disk_sem:
+        path = DIR / f"file_{worker_id}"
+
+        print(f"start {worker_id}")
+
+        with open(path, "wb", buffering=0) as f:
+            for i in range(FILE_SIZE_MB):
+                f.write(os.urandom(BLOCK))
+
+                if i % 100 == 0:
+                    print(f"worker {worker_id}: {i} MB")
+
+            print(f"fsync {worker_id}")
+            os.fsync(f.fileno())
+
+        print(f"done {worker_id}")
+
+
+def io_contention_disk_spammer():
+    """
+    Generate heavy concurrent disk writes to create I/O contention.
+    Example applications: multiple upload workers/processes/servers
+                        writing large files to the same storage device.
+
+    Args:
+        buggy: If True, all workers write simultaneously, saturating
+            the storage subsystem (queue depth, bandwidth, device latency).
+            If False, concurrency is limited (e.g. semaphore/thread pool),
+            reducing I/O contention while preserving throughput.
+
+    Returns:
+        Elapsed execution time.
+
+    TODO: Could collect per-thread write latency, IOPS, throughput,
+        queue depth, or block-layer statistics.
+
+    NOTE: This is a simplified reproduction of storage contention.
+          Real-world example would be multiple clients uploading
+          large files to the same SSD/NAS and typical mitigation
+          technique would be:
+          - imiting concurrent writers (semaphore - as in example).
+          - separating workloads onto different storage devices.
+    """
+    threads = []
+    start = time.time()
+
+    for i in range(THREADS):
+        t = threading.Thread(target=writer, args=(i,))
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    print("elapsed:", time.time() - start)
+
+
+def clean_artifacts():
+    for item in DIR.iterdir():
+        if item.is_file():
+            item.unlink()
+
+
+if __name__ == "__main__":
+    io_contention_disk_spammer()
+    clean_artifacts()
 

@@ -1,5 +1,8 @@
 # finds - Copyright (c) 2026 Kirizaki
 
+# lab artifacts
+lab/artifacts
+
 # pytest
 *__pycache__
 *.pytest_cache
