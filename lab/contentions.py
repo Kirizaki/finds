@@ -134,7 +134,10 @@ def writer(
                 except OSError:
                     stats.add_failure()
 
-            # fsync is the important part for storage contention
+            # fsync is important for storage contention measurements
+            # because it exposes end-to-end commit latency.
+            # In NAS systems, contention can happen at the network layer,
+            # filesystem layer, RAID/controller queues, storage tiers or disks.
             start = time.perf_counter()
 
             try:
