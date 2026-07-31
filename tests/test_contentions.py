@@ -3,7 +3,7 @@
 import statistics
 
 from pathlib import Path
-from lab.contentions import thread_contention_counter, io_contention_disk_spammer, clean_artifacts
+from lab.contentions import thread_contention_counter, io_contention_disk_spammer, clean_artifacts, cpu_contention_hash_spammer
 
 
 def test_thread_contention_fixed_is_correct():
@@ -65,7 +65,9 @@ def test_io_contention_buggy_p99_latency_tail_with_similar_throughput():
     destination = Path("./lab/artifacts/")
     destination.mkdir(exist_ok=True)
     fixed = io_contention_disk_spammer(destination=destination, buggy=False)
+    clean_artifacts(destination)
     buggy = io_contention_disk_spammer(destination=destination, buggy=True)
+    clean_artifacts(destination)
 
     print("\n  Fixed (bounded concurrency):\n"f"{fixed}")
     print("\n  Buggy (unbounded concurrency):\n"f"{buggy}")
@@ -76,7 +78,7 @@ def test_io_contention_buggy_p99_latency_tail_with_similar_throughput():
     # fixed case should maintain at least 80% of buggy throughput
     assert fixed["throughput_mb_s"] >= buggy["throughput_mb_s"] * 0.8
 
-    # write p99 = tail latency:
+    # write p99 (tail latency):
     # - retries
     # - timeouts
     # - queues build
@@ -87,3 +89,29 @@ def test_io_contention_buggy_p99_latency_tail_with_similar_throughput():
     #       storage backend, or runner environment,
     #       we should omit that, or apply based on specific infra.
     # assert buggy["fsync_p99_ms"] > fixed["fsync_p99_ms"]
+
+def test_cpu_contention():
+    fixed = cpu_contention_hash_spammer(num_threads=64, iterations=5000, buggy=False)
+    buggy = cpu_contention_hash_spammer(num_threads=64, iterations=5000, buggy=True)
+
+    print("\n  Fixed (bounded CPU concurrency):\n"f"{fixed}")
+    print("\n  Buggy (oversubscribed CPU):\n"f"{buggy}")
+
+    # verify bounded concurrency in fixed case
+    assert buggy["queue_depth"] > fixed["queue_depth"]
+
+    # oversubscription should not provide meaningful throughput gain.
+    throughput_ratio = (
+        buggy["ops_per_sec"] /
+        fixed["ops_per_sec"]
+    )
+
+    assert 0.85 <= throughput_ratio <= 1.15, (
+        f"Unexpected throughput difference: "
+        f"fixed={fixed['ops_per_sec']:.2f} ops/s "
+        f"buggy={buggy['ops_per_sec']:.2f} ops/s"
+    )
+
+    # too many runnable threads cause scheduler pressure and cache thrashing
+    assert buggy["task_p99_ms"] > (fixed["task_p99_ms"] * 10)
+
