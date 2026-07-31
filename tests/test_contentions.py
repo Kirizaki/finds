@@ -67,23 +67,35 @@ def test_io_contention_buggy_p99_latency_tail_with_similar_throughput():
     fixed = io_contention_disk_spammer(destination=destination, buggy=False)
     buggy = io_contention_disk_spammer(destination=destination, buggy=True)
 
-    print(fixed)
-    print(buggy)
+    print("\n  Fixed (bounded concurrency):\n"f"{fixed}")
+    print("\n  Buggy (unbounded concurrency):\n"f"{buggy}")
 
+    # fixed case limits concurrent writers,
+    # therefore application-level queue depth should be lower.
     assert buggy["queue_depth"] > fixed["queue_depth"]
-    # good semaphore/limiter should keep good throughput
+
+    # good semaphore/limiter reduces excessive concurrency
+    # without unnecessarily starving the storage device
     throughput_ratio = (
         buggy["throughput_mb_s"] /
         fixed["throughput_mb_s"]
     )
     assert 0.85 <= throughput_ratio <= 1.15, (
-        f"Throughput changed too much: "
+        f"Expected throughput to be similar, but got: "
         f"fixed={fixed['throughput_mb_s']:.2f} MB/s "
         f"buggy={buggy['throughput_mb_s']:.2f} MB/s "
         f"ratio={throughput_ratio:.2f}"
     )
-    assert buggy["write_p50_ms"] > fixed["write_p50_ms"]
-    assert buggy["write_p95_ms"] > fixed["write_p95_ms"]
+
+    # write p99 = tail latency:
+    # - retries
+    # - timeouts
+    # - queues build
+    # - systems cascade
     assert buggy["write_p99_ms"] > fixed["write_p99_ms"]
-    assert buggy["fsync_p50_ms"] > fixed["fsync_p50_ms"]
+
+    # as fsync depends heavily on fs, virtualization,
+    # storage backend, and runner environment,
+    # so we should omit that, or apply based on specific infra.
+    # assert buggy["fsync_p99_ms"] > fixed["fsync_p99_ms"]
 

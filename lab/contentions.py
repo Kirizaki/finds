@@ -110,84 +110,39 @@ def thread_contention_fixed_case(num_buckets: int, counters: int, num_threads: i
 
 ###### I/O contention ######
 
-def writer(
-    worker_id: int,
-    file_size_mb: int,
-    block_size: int,
-    destination: Path,
-    stats: IOStats
-):
+def writer(worker_id: int, file_size_mb: int, block_size: int, destination: Path, stats: IOStats):
     path = destination / f"file_{worker_id}"
     stats.writer_started()
 
-    try:
-        with open(path, "wb", buffering=0) as f:
-            for _ in range(file_size_mb):
-                data = os.urandom(block_size)
-                start = time.perf_counter()
-
-                try:
-                    f.write(data)
-                    latency = time.perf_counter() - start
-                    stats.add_write_latency(latency)
-                    stats.add_bytes(block_size)
-                except OSError:
-                    stats.add_failure()
-
-            # fsync is important for storage contention measurements
+    with open(path, "wb", buffering=0) as f:
+        for _ in range(file_size_mb):
+            data = os.urandom(block_size)
+            # write & fsync latency is important for storage contention measurements
             # because it exposes end-to-end commit latency.
             # In NAS systems, contention can happen at the network layer,
             # filesystem layer, RAID/controller queues, storage tiers or disks.
             start = time.perf_counter()
+            f.write(data)
+            latency = time.perf_counter() - start
+            stats.add_write_latency(latency)
+            stats.add_bytes(block_size)
+            f.flush()
+            os.fsync(f.fileno())
 
-            try:
-                f.flush()
-                os.fsync(f.fileno())
-                latency = time.perf_counter() - start
-                stats.add_fsync_latency(latency)
-            except OSError:
-                stats.add_failure()
-    finally:
         stats.writer_finished()
 
 
-def spam(
-    worker_id: int,
-    file_size_mb: int,
-    block_size: int,
-    destination: Path,
-    buggy: bool,
-    disk_sem: Semaphore,
-    stats: IOStats
-):
-    if buggy:
-        # all writers hit storage simultaneously
-        writer(
-            worker_id,
-            file_size_mb,
-            block_size,
-            destination,
-            stats
-        )
-    else:
-        # controlled concurrency
+def spam(worker_id: int, file_size_mb: int, block_size: int, destination: Path,
+         buggy: bool, disk_sem: Semaphore, stats: IOStats):
+    if buggy:  # all writers hit storage simultaneously
+        writer(worker_id, file_size_mb, block_size, destination, stats)
+    else:  # controlled concurrency
         with disk_sem:
-            writer(
-                worker_id,
-                file_size_mb,
-                block_size,
-                destination,
-                stats
-            )
+            writer(worker_id, file_size_mb, block_size, destination, stats)
 
 
-def io_contention_disk_spammer(
-    destination: Path,
-    num_threads: int = 64,
-    file_size_mb: int = 1024,
-    block_size: int = 1024 * 1024,
-    buggy: bool = False
-):
+def io_contention_disk_spammer(destination: Path, num_threads: int = 64, file_size_mb: int = 1024,
+                               block_size: int = 1024 * 1024, buggy: bool = False):
     stats = IOStats()
 
     # simulate storage controller queue depth limit
@@ -197,70 +152,24 @@ def io_contention_disk_spammer(
     start = time.perf_counter()
 
     for i in range(num_threads):
-        t = Thread(
-            target=spam,
-            args=(
-                i,
-                file_size_mb,
-                block_size,
-                destination,
-                buggy,
-                disk_sem,
-                stats
-            )
-        )
-
+        t = Thread(target=spam, args=(i, file_size_mb, block_size, destination, buggy, disk_sem, stats))
         threads.append(t)
-        t.start()
 
-    for t in threads:
-        t.join()
-
+    _start_and_join_threads(threads)
     elapsed = time.perf_counter() - start
 
     write_lat = stats.write_latencies
-    fsync_lat = stats.fsync_latencies
 
     def percentile(values, p):
         if not values:
             return 0
-
-        return (
-            statistics.quantiles(
-                values,
-                n=100
-            )[p - 1]
-        )
-
+        return (statistics.quantiles(values, n=100)[p - 1])
 
     return {
         "elapsed": elapsed,
-        "write_p50_ms":
-            statistics.median(write_lat) * 1000
-            if write_lat else 0,
-        "write_p95_ms":
-            percentile(write_lat, 95) * 1000,
-        "write_p99_ms":
-            percentile(write_lat, 99) * 1000,
-        "fsync_p50_ms":
-            statistics.median(fsync_lat) * 1000
-            if fsync_lat else 0,
-        "fsync_p95_ms":
-            percentile(fsync_lat, 95) * 1000,
-        "fsync_p99_ms":
-            percentile(fsync_lat, 99) * 1000,
-        "iops":
-            stats.operations / elapsed,
-        "throughput_mb_s":
-            stats.bytes_written /
-            elapsed /
-            (1024 * 1024),
-        "queue_depth":
-            stats.max_queue_depth,
-        "failed_writes":
-            stats.failed_writes,
-        "timeouts":
-            stats.timeouts,
+        "write_p99_ms": percentile(write_lat, 99) * 1000,
+        "throughput_mb_s": stats.bytes_written / elapsed / block_size,
+        "queue_depth": stats.max_queue_depth,
     }
 
 
