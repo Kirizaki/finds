@@ -9,6 +9,7 @@ import time
 
 from pathlib import Path
 
+
 DIR = Path("./lab/artifacts/")
 DIR.mkdir(exist_ok=True)
 THREADS = 6
