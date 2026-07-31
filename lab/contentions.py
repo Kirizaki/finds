@@ -180,7 +180,7 @@ def spam(
 
 def io_contention_disk_spammer(
     destination: Path,
-    num_threads: int = 8,
+    num_threads: int = 128,
     file_size_mb: int = 1024,
     block_size: int = 1024 * 1024,
     buggy: bool = False
@@ -188,7 +188,7 @@ def io_contention_disk_spammer(
     stats = IOStats()
 
     # simulate storage controller queue depth limit
-    disk_sem = Semaphore(2)
+    disk_sem = Semaphore(16)
 
     threads = []
     start = time.perf_counter()
@@ -232,6 +232,8 @@ def io_contention_disk_spammer(
 
     return {
         "elapsed": elapsed,
+        "write_lat": write_lat,
+        "fsync_lat": fsync_lat,
         "write_p50_ms":
             statistics.median(write_lat) * 1000
             if write_lat else 0,

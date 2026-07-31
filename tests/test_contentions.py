@@ -71,5 +71,5 @@ def test_io_contention_throughput_and_p99_latency():
     print(buggy)
 
     assert buggy["fsync_p99_ms"] > fixed["fsync_p99_ms"]
-    assert buggy["queue_depth"] > fixed["queue_depth"]
+    assert buggy["write_p99_ms"] > fixed["write_p99_ms"]
 
