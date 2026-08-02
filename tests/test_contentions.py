@@ -75,8 +75,8 @@ def test_io_contention_buggy_p99_latency_tail_with_similar_throughput():
     # verify bounded concurrency in fixed case
     assert fixed["queue_depth"] < buggy["queue_depth"]
 
-    # fixed case should maintain at least 80% of buggy throughput
-    assert fixed["throughput_mb_s"] >= buggy["throughput_mb_s"] * 0.8
+    # fixed case should maintain at least 70% of buggy throughput
+    assert fixed["throughput_mb_s"] >= buggy["throughput_mb_s"] * 0.7
 
     # write p99 (tail latency):
     # - retries

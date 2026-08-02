@@ -1,8 +1,9 @@
 # finds - Copyright (c) 2026 Kirizaki
-name: Run tests
+name: Nightly tests
 
 on:
-  pull_request:
+  schedule: 
+    - cron: "00 18 * * *"  # every day 18:00
 
 jobs:
 
@@ -22,11 +23,6 @@ jobs:
       run: |
         pip install -r requirements.txt
 
-    # TODO: Add comment trigger to add '--fix' param!
-    # - name: Run lint
-    #   run: |
-    #     ruff check .
-
     - name: Run tests
       run: |
-        pytest -v -s
+        pytest -s -v -m "not stress"
