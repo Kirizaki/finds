@@ -40,3 +40,4 @@ def deadlock_runner():
         return gather_stats(results_queue)
 
     return run
+
