@@ -6,10 +6,6 @@ import time
 import multiprocessing as mp
 
 
-def production_lock_factory(_):
-    return mp.Lock()
-
-
 class UploadBackend:
     """
     Simulates REST upload backend shared resources:

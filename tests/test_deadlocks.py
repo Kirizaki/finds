@@ -58,7 +58,7 @@ def test_deadlocks_fixed_completes_without_deadlock_test_lock(deadlock_runner, t
 @pytest.mark.deadlocks
 def test_deadlocks_fixed_completes_without_deadlock_prod_lock(deadlock_runner):
     tasks_num = 50
-    stats = deadlock_runner(tasks_num=tasks_num, prod_lock_factory=True)
+    stats = deadlock_runner(tasks_num=tasks_num, prod_mode=True)
 
     assert stats["upload_completed"] == tasks_num
     assert stats["cleanup_completed"] == tasks_num

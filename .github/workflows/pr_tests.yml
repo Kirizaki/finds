@@ -5,8 +5,12 @@ on:
   pull_request:
 
 jobs:
-
   test:
+    if: >
+      github.event_name != 'push' ||
+      github.event_name != 'pull_request' ||
+      !contains(github.event.head_commit.message, 'omit-pr-test')
+
     runs-on: ubuntu-latest
 
     steps:
@@ -21,11 +25,6 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
-
-    # TODO: Add comment trigger to add '--fix' param!
-    # - name: Run lint
-    #   run: |
-    #     ruff check .
 
     - name: Run tests
       run: |

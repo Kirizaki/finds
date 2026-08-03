@@ -12,3 +12,4 @@ lab/artifacts
 
 # other
 *.DS_Store
+.vscode
