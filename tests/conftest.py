@@ -128,7 +128,11 @@ def deadlock_runner():
         # run all tasks
         start_and_join_workers(start_event, tasks)
 
-        # return gathered results
+        # return gathered results with lock metrics when instrumented
+        if not prod_mode:
+            return gather_stats(results_queue,
+                                quota_lock=backend.quota_lock,
+                                metadata_lock=backend.metadata_lock)
         return gather_stats(results_queue)
 
     return run
