@@ -1,5 +1,6 @@
 pytest
 pytest-timeout
 pytest-mock
+pytest-html  # BSD license
 ruff  # MIT license ;)
 psutil  # BSD license ;)

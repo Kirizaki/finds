@@ -110,7 +110,23 @@ After each test run, a **Fault Detection Summary** is printed showing per-fault-
 - **PASS** means detection is reliable: both the buggy path exhibits the fault and the fixed path is clean.
 - **FAIL** indicates flaky or broken detection - review the specific test for environmental sensitivity.
 
-CI workflows also produce JUnit XML artifacts for integration with dashboards and reporting tools.
+### HTML Dashboard
+
+An interactive HTML report is generated automatically at `results/report.html` after every test run (via `pytest-html`). It includes:
+
+- **Fault Detection Summary** table at the top (pass/fail per fault class with timings)
+- **Fault Class** and **Duration** columns for each test row (sortable)
+- Full test output, captured logs, and environment metadata
+
+To view it locally after a test run:
+```bash
+python -m pytest                       # generates results/report.html
+open results/report.html               # macOS
+xdg-open results/report.html           # Linux
+start results\report.html              # Windows
+```
+
+CI workflows upload both JUnit XML and the HTML report as downloadable artifacts.
 
 ## CI Integration
 

@@ -6,6 +6,7 @@ lab/artifacts
 # pytest
 *__pycache__
 *.pytest_cache
+results/
 
 # lint
 *.ruff_cache
