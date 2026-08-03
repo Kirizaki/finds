@@ -110,3 +110,38 @@ def test_deadlocks_fixed_completes_without_deadlock_stress(deadlock_runner):
     assert stats["timeouts"] == 0
     assert stats["errors"] == 0
 
+@pytest.mark.deadlocks
+@pytest.mark.regression
+def test_deadlocks_fixed_lock_order_not_reverted(deadlock_runner):
+    """
+    Regression: consistent lock ordering must not be accidentally
+    reverted to the buggy order. Previously, swapping the lock
+    acquisition order in cleanup_worker reintroduced circular wait.
+
+    This test runs the fixed path with enough concurrency to trigger
+    the deadlock if lock ordering regresses, verifying zero timeouts
+    across multiple rounds.
+    """
+    for _ in range(5):
+        stats = deadlock_runner(tasks_num=100, prod_mode=True, buggy=False)
+
+        assert stats["upload_completed"] == 100
+        assert stats["cleanup_completed"] == 100
+        assert stats["timeouts"] == 0
+        assert stats["errors"] == 0
+
+@pytest.mark.deadlocks
+@pytest.mark.regression
+def test_deadlocks_buggy_always_detected(deadlock_runner, mocker):
+    """
+    Regression: the buggy path must always produce at least one
+    timeout. If this test starts passing with zero timeouts, the
+    fault injection or detection mechanism is broken.
+    """
+    mocker.patch.dict(os.environ, {"LOCK_TIMEOUT": "1.0"})
+    for _ in range(3):
+        stats = deadlock_runner(tasks_num=50, prod_mode=False, buggy=True)
+
+        assert stats["timeouts"] > 0, "Deadlock was not detected - fault injection may be broken"
+        assert stats["errors"] == 0
+
