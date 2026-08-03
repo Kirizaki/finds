@@ -138,7 +138,7 @@ def test_io_contention_fixed_is_correct(io_contention_runner):
     assert stats["queue_depth"] <= max_writers
 
 @pytest.mark.contentions
-def test_io_contention_buggy_is_correct_but_cannot_control_concurrency(io_contention_runner):
+def test_io_contention_buggy_is_correct(io_contention_runner):
     """
     Buggy path writes all expected bytes but cannot control concurrency.
     TODO: Could add test with threads barrier (start_event), to prove queue_depth > num_threads.
@@ -156,6 +156,27 @@ def test_io_contention_buggy_is_correct_but_cannot_control_concurrency(io_conten
     assert stats["errors"] == 0
     assert stats["bytes_written"] == num_threads * file_size_mb * block_size
     assert stats["queue_depth"] > max_writers
+
+@pytest.mark.contentions
+@pytest.mark.regression
+def test_io_fixed_queue_depth_stays_bounded(io_contention_runner):
+    """
+    Regression: fixed path must never exceed max_writers concurrency.
+    
+    Previously, queue depth could match num_threads when the semaphore
+    was accidentally byppased. This guards againts re-introducing
+    unbounded writer concurrency in the fixed case.
+    """
+    num_threads = 16
+    max_writers = 4
+
+    stats = io_contention_runner(num_threads=num_threads, file_size_mb=2,
+                                 block_size=1024 * 1024, max_writers=max_writers,
+                                 buggy=False, prod_mode=True)
+
+    assert stats["errors"] == 0
+    assert stats["queue_depth"] <= max_writers
+    assert stats["queue_depth"] > 0
 
 @pytest.mark.contentions
 @pytest.mark.long

@@ -7,8 +7,6 @@ import multiprocessing as mp
 
 from tests.instrumentation.thread_metrics import current_metrics
 
-VERBOSE = False
-
 
 def test_lock_factory(name: str):
     if name == "counter":
@@ -44,6 +42,8 @@ class InstrumentedLockBase:
         same lock factory interface without timeout instrumentation.
     """
     LOCK_TIMEOUT: float = float(os.getenv("LOCK_TIMEOUT", "120"))
+    # by deafult disabled due to spammmmm
+    LOCK_VERBOSE: bool = False
 
     def __init__(self, name: str, lock):
         self.name: str = name
@@ -51,7 +51,7 @@ class InstrumentedLockBase:
 
     def acquire(self, *args, **kwargs):
         start = time.perf_counter()
-        if VERBOSE:
+        if self.LOCK_VERBOSE:
             print(f"[{os.getpid()}] WAIT {self.name}")
 
         kwargs["timeout"] = self.LOCK_TIMEOUT
@@ -62,12 +62,12 @@ class InstrumentedLockBase:
             print(f"[{os.getpid()}] LOCK_TIMEOUT {self.name} after {waited:.3f}s")
             raise TimeoutExpired(f"Timeout acquiring {self.name}")
 
-        if VERBOSE:
+        if self.LOCK_VERBOSE:
             print(f"[{os.getpid()}] ACQUIRED {self.name} wait={waited:.6f}s")
         return True
 
     def release(self):
-        if VERBOSE:
+        if self.LOCK_VERBOSE:
             print(f"[{os.getpid()}] RELEASE {self.name}")
         self._lock.release()
 
@@ -89,7 +89,7 @@ class InstrumentedThreadLock(InstrumentedLockBase):
 
     def acquire(self, *args, **kwargs):
         start = time.perf_counter()
-        if VERBOSE:
+        if self.LOCK_VERBOSE:
             print(f"[{os.getpid()}] WAIT {self.name}")
 
         kwargs["timeout"] = self.LOCK_TIMEOUT
@@ -104,7 +104,7 @@ class InstrumentedThreadLock(InstrumentedLockBase):
             raise TimeoutExpired(f"Timeout acquiring {self.name}")
 
         metrics.lock_acquires += 1
-        if VERBOSE:
+        if self.LOCK_VERBOSE:
             print(f"[{os.getpid()}] ACQUIRED {self.name} wait={waited:.6f}s")
         return True
 
