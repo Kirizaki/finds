@@ -15,7 +15,7 @@ _thread_local = threading.local()
 class ThreadMetrics:
     name: str
     started: float = 0
-    finishedd: float = 0
+    finished: float = 0
     active_time: float = 0
     wait_time: float = 0
     sleep_time: float = 0
@@ -25,7 +25,7 @@ class ThreadMetrics:
 
     @property
     def runtime(self):
-        return self.finishedd - self.started
+        return self.finished - self.started
 
 
 def set_current_metrics(metrics: ThreadMetrics):
@@ -45,7 +45,7 @@ def measure_active(metrics: ThreadMetrics):
 
 def gather_metrics(metrics: ThreadMetrics):
     return {
-        "runtime": max(m.finishedd for m in metrics) - min(m.started for m in metrics),
+        "runtime": max(m.finished for m in metrics) - min(m.started for m in metrics),
         "active_time": sum(m.active_time for m in metrics),
         "wait_time": sum(m.wait_time for m in metrics),
         "operations": sum(m.operations for m in metrics),

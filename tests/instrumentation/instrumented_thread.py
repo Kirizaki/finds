@@ -31,6 +31,6 @@ class InstrumentedThread(threading.Thread):
         try:
             super().run()
         finally:
-            self.metrics.finishedd = time.perf_counter()
-            self.metrics.active_time = self.metrics.finishedd - self.metrics.started
+            self.metrics.finished = time.perf_counter()
+            self.metrics.active_time = self.metrics.finished - self.metrics.started
 
