@@ -16,7 +16,6 @@ def test_thread_contention_fixed_is_correct(thread_contention_runner):
     assert sum(stats["totals"].values()) == 8 * 50000
 
 @pytest.mark.contentions
-@pytest.mark.negative
 def test_thread_contention_buggy_is_correct(thread_contention_runner):
     """
     Buggy path should also produce correct totals.
@@ -28,7 +27,6 @@ def test_thread_contention_buggy_is_correct(thread_contention_runner):
     assert sum(stats["totals"].values()) == 8 * 50000
 
 @pytest.mark.contentions
-@pytest.mark.negative
 @pytest.mark.long
 def test_thread_contention_buggy_is_slower(thread_contention_runner):
     """
@@ -47,7 +45,6 @@ def test_thread_contention_buggy_is_slower(thread_contention_runner):
     assert ratio > 1.15, (f"Expected buggy path to be >1.15x slower, but got {ratio:.2f}")
 
 @pytest.mark.contentions
-@pytest.mark.negative
 def test_thread_contention_buggy_wait_dominates_active(thread_contention_runner):
     """
     Hot-lock proof: most of the threads' active time is spent
@@ -82,7 +79,6 @@ def test_thread_contention_buggy_wait_dominates_active(thread_contention_runner)
     assert f_wait == 0
 
 @pytest.mark.contentions
-@pytest.mark.negative
 def test_thread_contention_lock_acquires_conservation(thread_contention_runner):
     """
     Every increment in the buggy path acquires the global lock exactly once.
@@ -103,7 +99,6 @@ def test_thread_contention_lock_acquires_conservation(thread_contention_runner):
     assert f_acquires == 0, f"Expected 0 lock acquires in fixed path, got {f_acquires}"
 
 @pytest.mark.contentions
-@pytest.mark.negative
 def test_thread_contention_buggy_p99_lock_wait(thread_contention_runner):
     """
     Hot-lock causes tail latency spikes visible at p99 (1% of users will experience this).
@@ -143,27 +138,26 @@ def test_io_contention_fixed_is_correct(io_contention_runner):
     assert stats["queue_depth"] <= max_writers
 
 @pytest.mark.contentions
-@pytest.mark.negative
-def test_io_contention_buggy_is_correct(io_contention_runner):
+def test_io_contention_buggy_is_correct_but_cannot_control_concurrency(io_contention_runner):
     """
-    Buggy path writes all expected bytes but runs all writers simultaneously.
-
-    NOTE: Like thread contention, the bug affects CONCURRENCY CONTROL, not CORRECTNESS.
+    Buggy path writes all expected bytes but cannot control concurrency.
+    TODO: Could add test with threads barrier (start_event), to prove queue_depth > num_threads.
+    NOTE: Like thread contention, the bug affects CONCURRENCY CONTROL, not CORRECTNESS of the data.
     """
     num_threads = 16
     file_size_mb = 2
     block_size = 1024 * 1024
+    max_writers = 4
 
     stats = io_contention_runner(num_threads=num_threads, file_size_mb=file_size_mb,
-                                 block_size=block_size,
+                                 block_size=block_size, max_writers=max_writers,
                                  buggy=True, prod_mode=True)
 
     assert stats["errors"] == 0
     assert stats["bytes_written"] == num_threads * file_size_mb * block_size
-    assert stats["queue_depth"] == num_threads
+    assert stats["queue_depth"] > max_writers
 
 @pytest.mark.contentions
-@pytest.mark.negative
 @pytest.mark.long
 def test_io_contention_buggy_p99_latency_tail_with_similar_throughput(io_contention_runner):
     fixed = io_contention_runner(num_threads=32, file_size_mb=8, max_writers=16, buggy=False, prod_mode=True)
@@ -210,7 +204,6 @@ def test_cpu_contention_fixed_is_correct(cpu_contention_runner):
     assert stats["queue_depth"] <= max_workers
 
 @pytest.mark.contentions
-@pytest.mark.negative
 def test_cpu_contention_buggy_is_correct(cpu_contention_runner):
     """
     Buggy path completes all operations but runs all workers simultaneously.
@@ -228,7 +221,6 @@ def test_cpu_contention_buggy_is_correct(cpu_contention_runner):
     assert stats["queue_depth"] == num_threads
 
 @pytest.mark.contentions
-@pytest.mark.negative
 @pytest.mark.long
 def test_cpu_contention_buggy_p99_latency_with_similar_throughput(cpu_contention_runner):
     num_threads = 64

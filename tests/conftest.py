@@ -36,12 +36,6 @@ def _run_contention(backend_factory, worker_fn, gather_fn, iterations=1):
         worker_fn(backend_factory(), results_queue)
     return gather_fn(results_queue)
 
-@pytest.fixture
-def verbose_locks():
-    instrumented_locks.VERBOSE = True
-    yield
-    instrumented_locks.VERBOSE = False
-
 # CONTENTION RUNNERS
 
 @pytest.fixture

@@ -17,7 +17,6 @@ def test_upload_quota_fixed_is_correct(hazard_runner):
     assert stats["accepted"] + stats["rejected"] == 100
 
 @pytest.mark.hazards
-@pytest.mark.negative
 def test_upload_quota_toctou_bug(hazard_runner):
     """
     Buggy path: TOCTOU race causes quota oversubscription.
@@ -30,7 +29,6 @@ def test_upload_quota_toctou_bug(hazard_runner):
     assert stats["quota_violations"] >= 1
 
 @pytest.mark.hazards
-@pytest.mark.negative
 def test_toctou_upload_quota_violations_formula(hazard_runner):
     """
     Verify the quota violations formula holds consistently across multiple runs.
@@ -46,7 +44,6 @@ def test_toctou_upload_quota_violations_formula(hazard_runner):
         assert stats["quota_violations"] == ((stats["used_mb"] - stats["quota_mb"]) / upload_size_mb) + 1
 
 @pytest.mark.hazards
-@pytest.mark.negative
 @pytest.mark.stress
 def test_toctou_upload_quota_stress(hazard_runner):
     """

@@ -5,7 +5,6 @@ import pytest
 
 
 @pytest.mark.deadlocks
-@pytest.mark.negative
 def test_deadlocks_wrong_order_test_lock(deadlock_runner, mocker):
     mocker.patch.dict(os.environ, {"LOCK_TIMEOUT": "1.0"})
     tasks_num = 50
@@ -25,7 +24,6 @@ def test_deadlocks_wrong_order_test_lock(deadlock_runner, mocker):
 
 
 @pytest.mark.deadlocks
-@pytest.mark.negative
 @pytest.mark.long
 def test_deadlocks_wrong_order_default_timeout_test_lock(deadlock_runner):
     tasks_num = 50
