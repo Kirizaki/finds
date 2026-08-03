@@ -24,4 +24,11 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest -s -v
+        pytest -s -v --junitxml=results/junit.xml
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: full-scope-test-results
+        path: results/junit.xml

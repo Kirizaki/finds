@@ -23,4 +23,11 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest -s -v -m "not stress and not long"
+        pytest -s -v -m "not stress and not long" --junitxml=results/junit.xml
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: results/junit.xml
