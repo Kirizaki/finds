@@ -12,15 +12,13 @@ class UploadBackend:
         - quota_lock
         - metadata_lock
 
-    Wrong lock order
+    Buggy (circular wait):
         - upload_request: quota -> metadata
         - cleanup_request: metadata -> quota
 
-    Correct lock order:
+    Fixed (consistent order):
         - upload_request: quota -> metadata
         - cleanup_request: quota -> metadata
-        
-        NOTE: Creating circular wait.
     """
     def __init__(self, lock_factory, buggy: bool = False):
         # dependency injection (production | instrumented/debug)
@@ -41,7 +39,7 @@ class UploadBackend:
 
     def _reserve_quota(self, _):
         # simulate quota reservation with metadata_size
-            time.sleep(0.01)
+        time.sleep(0.01)
 
     def _update_metadata(self, _):
         # simulate metadata upload
@@ -69,7 +67,7 @@ class UploadBackend:
 
     def _cleanup_metadata(self, _):
         # simulate metadata update
-            time.sleep(0.03)
+        time.sleep(0.03)
 
     def _recalculate_quota(self, _):
         # simulate quota recalculation
