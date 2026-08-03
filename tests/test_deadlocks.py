@@ -41,9 +41,21 @@ def test_deadlocks_wrong_order_default_timeout(deadlock_runner):
     assert completed == tasks_num * 2
 
 @pytest.mark.deadlocks
-def test_deadlocks_wrong_order_default_timeout_debug_output(deadlock_runner):
+def test_deadlocks_wrong_order_debug_output(deadlock_runner, mocker):
+    """
+    Same as test_deadlocks_wrong_order but with verbose lock tracing
+    and a diagnostic summary printed for debugging deadlock patterns.
+    """
+    mocker.patch.dict(os.environ, {"LOCK_TIMEOUT": "1.0"})
     tasks_num = 50
     stats = deadlock_runner(tasks_num=tasks_num, prod_mode=False, buggy=True)
+
+    print(f"\n  Deadlock debug output:")
+    print(f"    uploads completed:  {stats['upload_completed']}/{tasks_num}")
+    print(f"    cleanups completed: {stats['cleanup_completed']}/{tasks_num}")
+    print(f"    timeouts (deadlocks detected): {stats['timeouts']}")
+    print(f"    errors: {stats['errors']}")
+    print(f"    total tasks: {tasks_num * 2}")
 
     assert stats["upload_completed"] + stats["cleanup_completed"] < tasks_num * 2
     assert stats["timeouts"] > 0
