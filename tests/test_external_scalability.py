@@ -15,7 +15,7 @@ import multiprocessing as mp
 
 import pytest
 
-from tests.instrumentation.instrumented_locks import test_lock_factory, TimeoutExpired
+from tests.instrumentation.instrumented_locks import instrumented_lock_factory, TimeoutExpired
 from tests.instrumentation.instrumented_thread import InstrumentedThreadFactory
 from tests.instrumentation.utils import start_and_join_workers
 
@@ -151,7 +151,7 @@ def test_external_inventory_fixed_no_oversell():
 # ---- tests: deadlock on external transfer service ----
 
 def _mp_lock_factory(name: str):
-    return test_lock_factory(name.replace("account_a", "quota").replace("account_b", "metadata"))
+    return instrumented_lock_factory(name.replace("account_a", "quota").replace("account_b", "metadata"))
 
 
 @pytest.mark.deadlocks
@@ -161,8 +161,8 @@ def test_external_transfer_deadlock_detected(mocker):
     Apply deadlock detector to a mock external fund transfer service.
     The timeout-based detection works identically to the lab UploadBackend stub.
     """
-    import os
-    mocker.patch.dict(os.environ, {"LOCK_TIMEOUT": "1.0"})
+    from tests.instrumentation.instrumented_locks import InstrumentedLockBase
+    mocker.patch.object(InstrumentedLockBase, "LOCK_TIMEOUT", 1.0)
 
     service = TransferService(lock_factory=_mp_lock_factory, buggy=True)
     results_queue = mp.Queue()
@@ -203,8 +203,8 @@ def test_external_transfer_fixed_no_deadlock(mocker):
     """
     Fixed transfer service completes all transfers without deadlock.
     """
-    import os
-    mocker.patch.dict(os.environ, {"LOCK_TIMEOUT": "2.0"})
+    from tests.instrumentation.instrumented_locks import InstrumentedLockBase
+    mocker.patch.object(InstrumentedLockBase, "LOCK_TIMEOUT", 5.0)
 
     service = TransferService(lock_factory=_mp_lock_factory, buggy=False)
     results_queue = mp.Queue()

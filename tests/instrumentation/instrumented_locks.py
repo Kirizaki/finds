@@ -8,7 +8,7 @@ import multiprocessing as mp
 from tests.instrumentation.thread_metrics import current_metrics
 
 
-def test_lock_factory(name: str):
+def instrumented_lock_factory(name: str):
     if name == "counter":
         return InstrumentedThreadLock(name)
     elif name in ["quota", "metadata"]:

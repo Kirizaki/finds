@@ -14,7 +14,7 @@ from lab.deadlocks import UploadBackend
 from lab.hazards import UploadQuotaPool, UploadQuotaPoolConfig
 
 import tests.instrumentation.instrumented_locks as instrumented_locks
-from tests.instrumentation.instrumented_locks import test_lock_factory
+from tests.instrumentation.instrumented_locks import instrumented_lock_factory
 from tests.instrumentation.utils import start_and_join_workers
 from tests.contention_helpers import thread_contention_worker, gather_thread_contention_stats
 from tests.contention_helpers import io_contention_worker, gather_io_contention_stats
@@ -41,7 +41,7 @@ def _run_contention(backend_factory, worker_fn, gather_fn, iterations=1):
 @pytest.fixture
 def thread_contention_runner():
     def run(num_threads=8, increments_per_thread=5000, num_buckets=64, prod_mode=False, buggy=False, iterations=1):
-        lock_factory = production_lock_factory if prod_mode else test_lock_factory
+        lock_factory = production_lock_factory if prod_mode else instrumented_lock_factory
 
         def make_backend():
             config = SharedCounterConfig(num_threads, increments_per_thread, num_buckets)
@@ -113,7 +113,7 @@ def deadlock_runner():
         if prod_mode:
             factory = production_lock_factory
         else:
-            factory = test_lock_factory
+            factory = instrumented_lock_factory
 
         # production (stub) code to be tested
         backend = UploadBackend(lock_factory=factory,buggy=buggy)
