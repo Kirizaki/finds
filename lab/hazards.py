@@ -12,16 +12,35 @@ class UploadStats:
     quota_violations: int = 0
 
 
+@dataclass
+class UploadQuotaPoolConfig:
+    num_uploads: int = 100
+    upload_size_mb: int = 10
+    quota_mb: int = 100
+
+
 class UploadQuota:
-    """"""
-    def __init__(self, quota_mb: int):
+    """
+    Shared tenant quota enforcer.
+
+    Buggy: TOCTOU race — check-then-act without atomicity.
+    Fixed: check & reserve atomically under a lock.
+    """
+    def __init__(self, quota_mb: int, buggy: bool = False):
         self.quota_mb = quota_mb
         self.used_mb = 0
+        self.buggy = buggy
 
         # fixed path lock
         self.lock = threading.Lock()
 
-    def upload_buggy(self, size_mb: int, stats: UploadStats):
+    def upload(self, size_mb: int, stats: UploadStats):
+        if self.buggy:
+            self._upload_buggy(size_mb, stats)
+        else:
+            self._upload_fixed(size_mb, stats)
+
+    def _upload_buggy(self, size_mb: int, stats: UploadStats):
         """
         TOCTOU bug: Check quota first, update usage later.
 
@@ -33,78 +52,66 @@ class UploadQuota:
 
             self.used_mb += size_mb
             stats.accepted += 1
-            if self.used_mb > self.quota_mb:
-                stats.quota_violations += 1
-                # NOTE: we could also simulate ENOSPC
-                # import errno
-                # raise OSError(errno.ENOSPC, "No space left on device")
         else:
             stats.rejected += 1
 
-
-    def upload_fixed(self, size_mb: int, stats: UploadStats):
+    def _upload_fixed(self, size_mb: int, stats: UploadStats):
         """
         Fixed: Check & reserve quota atomically by guarding the usage with lock.
         """
-
         with self.lock:
             if self.used_mb + size_mb <= self.quota_mb:
                 self.used_mb += size_mb
                 stats.accepted += 1
-                # NOTE: Of course, here also simulate ENOSPC
-                # if self.used_mb > self.quota_mb:
-                    # import errno
-                    # raise OSError(errno.ENOSPC, "No space left on device")
             else:
                 stats.rejected += 1
 
 
-def upload_worker(quota: UploadQuota, size_mb: int, buggy: bool, stats: UploadStats):
-    if buggy:
-        quota.upload_buggy(size_mb, stats)
-    else:
-        quota.upload_fixed(size_mb, stats)
-
-
-def toctou_upload_quota_race(num_uploads: int = 100, upload_size_mb: int = 10,
-                             quota_mb: int = 100, buggy: bool = False):
+class UploadQuotaPool:
     """
-    Simulate concurrent REST API uploads competing for shared tenant quota.
+    Simulates concurrent REST API uploads competing for shared tenant quota.
 
-    Args: TBD
+    Buggy: TOCTOU race allows multiple threads to pass the quota check
+           before any of them updates usage, oversubscribing the quota.
+    Fixed: quota check and reservation are atomic under a lock.
+
+    NOTE: This is a simplified reproduction of a TOCTOU race condition.
+          Real-world examples include cloud storage quota enforcement,
+          rate limiting, and inventory reservation.
     """
+    def __init__(self, thread_factory, config: UploadQuotaPoolConfig, buggy: bool = False):
+        self.thread_factory = thread_factory
+        self.config = config
+        self.buggy = buggy
 
-    quota = UploadQuota(quota_mb)
-    stats = UploadStats()
+    def run(self):
+        quota = UploadQuota(self.config.quota_mb, buggy=self.buggy)
+        stats = UploadStats()
 
-    threads = []
+        threads = [
+            self.thread_factory(self._make_worker(quota, stats))
+            for _ in range(self.config.num_uploads)
+        ]
 
-    for _ in range(num_uploads):
-        t = threading.Thread(
-            target=upload_worker,
-            args=(
-                quota,
-                upload_size_mb,
-                buggy,
-                stats,
-            )
-        )
-        threads.append(t)
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
-    for t in threads:
-        t.start()
+        # count quota violations post-run (single consistent check)
+        if quota.used_mb > quota.quota_mb:
+            stats.quota_violations = (quota.used_mb - quota.quota_mb) // self.config.upload_size_mb + 1
 
-    for t in threads:
-        t.join()
+        return {
+            "accepted": stats.accepted,
+            "rejected": stats.rejected,
+            "used_mb": quota.used_mb,
+            "quota_mb": quota.quota_mb,
+            "quota_violations": stats.quota_violations,
+        }
 
-    if quota.used_mb > quota.quota_mb:
-        stats.quota_violations += 1
-
-    return {
-        "accepted": stats.accepted,
-        "rejected": stats.rejected,
-        "used_mb": quota.used_mb,
-        "quota_mb": quota.quota_mb,
-        "quota_violations": stats.quota_violations,
-    }
+    def _make_worker(self, quota, stats):
+        def _worker():
+            quota.upload(self.config.upload_size_mb, stats)
+        return _worker
 

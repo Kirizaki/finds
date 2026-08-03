@@ -2,8 +2,8 @@
 
 import multiprocessing as mp
 
-from tests.utils.locks import TimeoutLock, TimeoutExpired
-from tests.utils.utils import get_percentile
+from tests.instrumentation.instrumented_locks import InstrumentedMultiprocessingLock, TimeoutExpired
+from tests.instrumentation.utils import get_percentile
 
 
 def backend_endpoint_wrapper(worker_type, target, results_queue):
@@ -44,7 +44,7 @@ def build_tasks(num_tasks, start_event, type, target, results_queue):
         ]
 
 
-def gather_stats(results_queue, quota_lock: TimeoutLock = None, metadata_lock: TimeoutLock = None):
+def gather_stats(results_queue, quota_lock: InstrumentedMultiprocessingLock = None, metadata_lock: InstrumentedMultiprocessingLock = None):
     stats = {
         "upload_completed": 0,
         "cleanup_completed": 0,

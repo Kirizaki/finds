@@ -1,10 +1,11 @@
 # finds - Copyright (c) 2026 Kirizaki
-name: Pull Request must pass tests
+name: Full scope
 
 on:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
+
   test:
     runs-on: ubuntu-latest
 
@@ -23,4 +24,4 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest -s -v -m "not stress and not long"
+        pytest -s -v

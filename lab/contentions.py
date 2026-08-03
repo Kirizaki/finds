@@ -1,5 +1,9 @@
 # finds - Copyright (c) 2026 Kirizaki
 
+# 1. Thread contention: hot-lock serialisation bottleneck
+# 2. i/o contention:    oversubscribed storage writers
+# 3. cpu contention:    oversubscribed compute workeers
+
 import os
 import hashlib
 import threading
@@ -7,30 +11,26 @@ import time
 import psutil
 import statistics
 from pathlib import Path
-from tools.io_stats import IOStats
-from threading import Semaphore, Thread
+from lab.io_stats import IOStats
+from threading import Semaphore
+from dataclasses import dataclass
 
-global_lock = threading.Lock()
 
 ###### thread contention ######
 
-def thread_contention_counter(
-        num_threads: int = 8,
-        increments_per_thread: int = 5000,
-        buggy: bool = False) -> tuple[float, dict[int, int]]:
+@dataclass
+class SharedCounterConfig:
+    num_threads: int = 8
+    increments_per_thread: int = 5000
+    num_buckets: int = 64
+
+
+class SharedCounter:
     """
-    Increment a shared counter from many threads (hot-lock).
-    Example applications: multiple threads/processes/servers
-                          write to the same database.
-    
-    Args:
-        buggy: If True, all threads contend on a single global lock.
-               If False, each thread works on its own private counter
-               (no lock contention at all), then the results are merged.
+    Simulates shared counter service (ie. distributed databese writes).
 
-    Returns (elapsed time, bucket totals).
-
-    TODO: Could add instrumented lock as arg, to ie. record acquire/release timestamps?
+    Buggy: single global lock serialises all threads (hot-lock)
+    Fixed: each thread works on private counters, merged at end (sharding)
 
     NOTE: As this case is trivial, it shows real solution of solving hot-locks
           by 'sharding' the shared mutable. Other case of hot-locks would be
@@ -43,159 +43,163 @@ def thread_contention_counter(
           Fixed: Global lock only to set placeholder - minimal contention,
                  and additional lock per leaf, for heavy IO.
     """
+    def __init__(self, lock_factory, thread_factory, config: SharedCounterConfig, buggy: bool=False):
+        self.lock_factory = lock_factory
+        self.thread_factory = thread_factory
+        self.config = config
+        self.buggy: bool = buggy
 
-    num_buckets = 64
-    counters = [0] * num_buckets  # shared mutable state across all threads
+    def run(self):
+        """
+        Increment shared counter from many threads.
 
-    if buggy:
-        return thread_contention_buggy_case(num_buckets, counters, num_threads, increments_per_thread)
-    else:
-        return thread_contention_fixed_case(num_buckets, counters, num_threads, increments_per_thread)
+        Returns bucket totals dict.
+        """
+        counters = [0] * self.config.num_buckets
 
+        if self.buggy:
+            return self._serialized_hot_lock(counters)
+        else:
+            return self._private_counters(counters)
 
-def _start_and_join_threads(threads: threading.Thread):
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    def _serialized_hot_lock(self, counters: list[int]):
+        # one global lock - all threads serialise
+        global_lock = self.lock_factory("counter")
 
+        def _worker():
+            for i in range(self.config.increments_per_thread):
+                bucket = i % self.config.num_buckets
+                with global_lock:
+                    counters[bucket] += 1
 
-def thread_contention_buggy_case(num_buckets: int, counters: int, num_threads: int, increments_per_thread: int):
-    # one global lock - all threads serialise
-    global_lock = threading.Lock()
+        threads = [self.thread_factory(target=_worker) for t in range(self.config.num_threads)]
+        SharedCounter.start_and_join_threads(threads)
 
-    def _worker():
-        for i in range(increments_per_thread):
-            bucket = i % num_buckets
-            with global_lock:
-                counters[bucket] += 1
-    
-    start = time.perf_counter()
-    threads = [threading.Thread(target=_worker) for t in range(num_threads)]
-    _start_and_join_threads(threads)
-    elapsed = time.perf_counter() - start
+        return {bucket: counters[bucket] for bucket in range(self.config.num_buckets)}
 
-    totals = {b: counters[b] for b in range(num_buckets)}
-    return elapsed, totals
+    def _private_counters(self, counters):
+            # no shared state (thread has private counters, merged at end)
+            thread_counters = [None] * self.config.num_threads
 
+            def _worker(tid: int):
+                local = [0] * self.config.num_buckets  # thread-private counters - no lock needed
+                for i in range(self.config.increments_per_thread):
+                    bucket = i % self.config.num_buckets
+                    local[bucket] += 1
+                thread_counters[tid] = local  # publish results for the merge phase
 
-def thread_contention_fixed_case(num_buckets: int, counters: int, num_threads: int, increments_per_thread: int):
-        # no shared state (thread has private counters, merged at end)
-        thread_counters = [None] * num_threads
+            threads = [self.thread_factory(target=_worker, args=(t,)) for t in range(self.config.num_threads)]
+            SharedCounter.start_and_join_threads(threads)
 
-        def _worker(tid: int):
-            local = [0] * num_buckets  # thread-private counters - no lock needed
-            for i in range(increments_per_thread):
-                bucket = i % num_buckets
-                local[bucket] += 1
-            thread_counters[tid] = local  # publish results for the merge phase
-        
-        start = time.perf_counter()
-        threads = [threading.Thread(target=_worker, args=(t,)) for t in range(num_threads)]
-        _start_and_join_threads(threads)
-        elapsed = time.perf_counter() - start
+            # merge pet-thread results
+            for local in thread_counters:
+                if local:
+                    for b in range(self.config.num_buckets):
+                        counters[b] += local[b]
 
-        # merge pet-thread results
-        for local in thread_counters:
-            if local:
-                for b in range(num_buckets):
-                    counters[b] += local[b]
+            return {bucket: counters[bucket] for bucket in range(self.config.num_buckets)}
 
-        totals = {b: counters[b] for b in range(num_buckets)}
-        return elapsed, totals
+    @staticmethod
+    def start_and_join_threads(threads):
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
 
 ###### I/O contention ######
 
-MAX_WRITERS = 2
-disk_sem = threading.Semaphore(MAX_WRITERS)
-
-def writer(worker_id: int, file_size_mb: int, block_size: int, destination: Path, stats: IOStats):
-    path = destination / f"file_{worker_id}"
-    stats.writer_started()
-
-    with open(path, "wb", buffering=0) as f:
-        for _ in range(file_size_mb):
-            data = os.urandom(block_size)
-            # write & fsync latency is important for storage contention measurements
-            # because it exposes end-to-end commit latency.
-            # in NAS systems, contention can happen at the network layer,
-            # filesystem layer, RAID/controller queues, storage tiers or disks.
-            start = time.perf_counter()
-            f.write(data)
-            latency = time.perf_counter() - start
-            stats.add_write_latency(latency)
-            stats.add_bytes(block_size)
-            f.flush()
-            os.fsync(f.fileno())
-
-        stats.writer_finished()
+@dataclass
+class StorageWriterPoolConfig:
+    num_threads: int = 64
+    file_size_mb: int = 1024
+    block_size: int = 1024 * 1024
+    max_writers: int = 16
 
 
-def spam(worker_id: int, file_size_mb: int, block_size: int, destination: Path,
-         buggy: bool, disk_sem: Semaphore, stats: IOStats):
-    if buggy:  # all writers hit storage simultaneously
-        writer(worker_id, file_size_mb, block_size, destination, stats)
-    else:  # controlled concurrency
-        with disk_sem:
-            writer(worker_id, file_size_mb, block_size, destination, stats)
-
-
-def io_contention_disk_spammer(destination: Path, num_threads: int = 64, file_size_mb: int = 1024,
-                               block_size: int = 1024 * 1024, buggy: bool = False):
+class StorageWriterPool:
     """
-    Generate I/O contention using concurrent large-file writes.
-    Example applications: multiple upload workers/processes/servers
-                          writing large files to the same storage device/system.
+    Simulates concurrent storage writers (ie. upload workers writing to same storage).
 
-    Args:
-        buggy: If True, all workers write simultaneously,
-               oversubscribing the storage subsystem and increasing
-               queue depth and write latency.
-               If False, worker concurrency is limited with a semaphore,
-               keeping the number of concurrent writers within the
-               "storage controller's capacity".
-
-    Returns (elapsed time, write p99 latency, throughput,
-            application queue depth).
+    Buggy: all writers hit storage simultaneously, oversubscribing the storage
+           subsystem and increasing queue depth and write latency.
+    Fixed: writer concurrency is limited with a semaphore, keeping the number
+           of concurrent writers within the storage controller's capacity.
 
     NOTE: This is a simplified reproduction of storage contention.
           Real-world examples include many clients uploading large
           files to the same SSD, NAS, RAID array or object storage.
-          Buggy: Too many writers issue requests concurrently,
-                 increasing storage queue depth and tail latency,
-                 while overall throughput changes little.
-          Fixed: Limit the number of concurrent writers to match
-                 storage capacity (disk and/or network),
-                 preserving throughput while significantly reducing latency.
     """
-    stats = IOStats()
+    def __init__(self, thread_factory, config: StorageWriterPoolConfig, destination: Path, buggy: bool = False):
+        self.thread_factory = thread_factory
+        self.config = config
+        self.destination = destination
+        self.buggy = buggy
 
-    # simulate storage controller queue depth limit
-    disk_sem = Semaphore(16)
+    def run(self):
+        stats = IOStats()
+        disk_sem = Semaphore(self.config.max_writers)
 
-    threads = []
-    start = time.perf_counter()
+        start = time.perf_counter()
+        threads = [
+            self.thread_factory(self._make_worker(i, stats, disk_sem))
+            for i in range(self.config.num_threads)
+        ]
+        StorageWriterPool.start_and_join_threads(threads)
+        elapsed = time.perf_counter() - start
 
-    for i in range(num_threads):
-        t = Thread(target=spam, args=(i, file_size_mb, block_size, destination, buggy, disk_sem, stats))
-        threads.append(t)
+        write_lat = stats.write_latencies
 
-    _start_and_join_threads(threads)
-    elapsed = time.perf_counter() - start
+        return {
+            "elapsed": elapsed,
+            "bytes_written": stats.bytes_written,
+            "write_p99_ms": StorageWriterPool._percentile(write_lat, 99) * 1000,
+            "throughput_mb_s": stats.bytes_written / elapsed / (1024 * 1024),
+            "queue_depth": stats.max_queue_depth,
+        }
 
-    write_lat = stats.write_latencies
+    def _make_worker(self, worker_id, stats, disk_sem):
+        def _worker():
+            if self.buggy:
+                self._write(worker_id, stats)
+            else:
+                with disk_sem:
+                    self._write(worker_id, stats)
+        return _worker
 
-    def percentile(values, p):
+    def _write(self, worker_id, stats):
+        path = self.destination / f"file_{worker_id}"
+        stats.writer_started()
+
+        with open(path, "wb", buffering=0) as f:
+            for _ in range(self.config.file_size_mb):
+                data = os.urandom(self.config.block_size)
+                # write & fsync latency is important for storage contention measurements
+                # because it exposes end-to-end commit latency.
+                # in NAS systems, contention can happen at the network layer,
+                # filesystem layer, RAID/controller queues, storage tiers or disks.
+                start = time.perf_counter()
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+                latency = time.perf_counter() - start
+                stats.add_write_latency(latency)
+                stats.add_bytes(self.config.block_size)
+
+        stats.writer_finished()
+
+    @staticmethod
+    def start_and_join_threads(threads):
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    @staticmethod
+    def _percentile(values, p):
         if not values:
             return 0
-        return (statistics.quantiles(values, n=100)[p - 1])
-
-    return {
-        "elapsed": elapsed,
-        "write_p99_ms": percentile(write_lat, 99) * 1000,
-        "throughput_mb_s": stats.bytes_written / elapsed / (1024 * 1024),
-        "queue_depth": stats.max_queue_depth,
-    }
+        return statistics.quantiles(values, n=100)[p - 1]
 
 
 def clean_artifacts(destination: Path):
@@ -205,156 +209,114 @@ def clean_artifacts(destination: Path):
 
 ###### CPU contention ######
 
-# thread per cpu
-cpu_sem = threading.Semaphore(os.cpu_count())
-active_workers = 0
-peak_workers = 0
-workers_lock = threading.Lock()
-
-def cpu_worker(buffer: bytes, iterations: int, metrics: dict):
-    global active_workers, peak_workers
-
-    with workers_lock:
-        active_workers += 1
-        peak_workers = max(peak_workers, active_workers)
-
-    latencies = []
-
-    for _ in range(iterations):
-        start = time.perf_counter()
-        # cpu job
-        hashlib.sha256(buffer).digest()
-        latency = (time.perf_counter() - start) * 1000
-        latencies.append(latency)
-
-    metrics["latencies"].extend(latencies)
-
-    with workers_lock:
-        active_workers -= 1
+@dataclass
+class ComputeWorkerPoolConfig:
+    num_threads: int = 64
+    iterations: int = 5000
+    buffer_size_mb: int = 8
+    max_workers: int = os.cpu_count()
 
 
-def spam_cpu(buffer: bytes, iterations: int, metrics: dict, buggy: bool):
-    if buggy:
-        # unlimited concurrency:
-        # all workers compete for CPU time
-        cpu_worker(buffer, iterations, metrics)
-    else:
-        # controlled concurrency:
-        # avoid oversubscribing CPU cores
-        with cpu_sem:
-            cpu_worker(buffer, iterations, metrics)
-
-
-def cpu_contention_hash_spammer(num_threads: int = 64, iterations: int = 5000, buffer_size_mb: int = 8, buggy: bool = False):
+class ComputeWorkerPool:
     """
-    Generate CPU contention using compute-bound SHA-256 hashing.
-    Example applications: cryptography, checksum generation,
-                        compression, image/video processing.
+    Simulates compute-bound workers (SHA-256 hashing) competing for CPU cores.
 
-    Args:
-        buggy: If True, all workers execute simultaneously,
-               oversubscribing CPU cores and increasing scheduler
-               pressure and CPU cache contention.
-               If False, worker concurrency is limited with a semaphore,
-               keeping the number of runnable tasks close to the
-               available CPU cores.
-
-    Returns (elapsed time, latency percentiles, throughput,
-            CPU utilization, context switches, queue depth).
+    Buggy: all workers execute simultaneously, oversubscribing CPU cores
+           and increasing scheduler pressure and cache contention.
+    Fixed: worker concurrency is limited with a semaphore, keeping the
+           number of runnable tasks close to the available CPU cores.
 
     NOTE: This is a simplified reproduction of CPU contention.
           Real-world examples include image/video encoding,
           compression, encryption, checksum generation, or
           machine learning inference executed by many workers.
-          Buggy: Too many CPU-bound tasks execute simultaneously,
-                 causing excessive context switching, scheduler
-                 overhead and cache thrashing.
-          Fixed: Limit the number of concurrent CPU-bound workers
-                 to approximately the number of available CPU cores,
-                 preserving throughput while significantly reducing
-                 tail latency and/or distribute the heavy-lifting
-                 across distributed assets.
     """
+    def __init__(self, thread_factory, config: ComputeWorkerPoolConfig, buggy: bool = False):
+        self.thread_factory = thread_factory
+        self.config = config
+        self.buggy = buggy
 
-    global peak_workers, active_workers
+    def run(self):
+        buffer = os.urandom(self.config.buffer_size_mb * 1024 * 1024)
+        cpu_sem = threading.Semaphore(self.config.max_workers)
 
-    peak_workers = 0
-    active_workers = 0
+        # thread-safe stats
+        latencies = []
+        latencies_lock = threading.Lock()
+        active_workers = [0]
+        peak_workers = [0]
+        workers_lock = threading.Lock()
 
-    process = psutil.Process()
+        process = psutil.Process()
+        ctx_before = process.num_ctx_switches()
+        cpu_time_before = process.cpu_times()
 
-    cpu_before = psutil.cpu_percent(interval=None)
+        def _worker():
+            with workers_lock:
+                active_workers[0] += 1
+                peak_workers[0] = max(peak_workers[0], active_workers[0])
 
-    ctx_before = process.num_ctx_switches()
-    cpu_time_before = process.cpu_times()
-    print(f"cpu_before: {cpu_before}")
-    print(f"ctx_before: {ctx_before}")
-    buffer = os.urandom(
-        buffer_size_mb * 1024 * 1024
-    )
+            local_latencies = []
+            for _ in range(self.config.iterations):
+                start = time.perf_counter()
+                hashlib.sha256(buffer).digest()
+                local_latencies.append((time.perf_counter() - start) * 1000)
 
-    metrics = {
-        "latencies": []
-    }
+            with latencies_lock:
+                latencies.extend(local_latencies)
 
-    threads = []
+            with workers_lock:
+                active_workers[0] -= 1
 
-    start = time.perf_counter()
+        def _bounded_worker():
+            if self.buggy:
+                _worker()
+            else:
+                with cpu_sem:
+                    _worker()
 
-    for _ in range(num_threads):
-        t = threading.Thread( target=spam_cpu, args=(buffer, iterations, metrics, buggy))
-        threads.append(t)
+        start = time.perf_counter()
+        threads = [
+            self.thread_factory(_bounded_worker)
+            for _ in range(self.config.num_threads)
+        ]
+        ComputeWorkerPool.start_and_join_threads(threads)
+        elapsed = time.perf_counter() - start
 
-    _start_and_join_threads(threads)
+        ctx_after = process.num_ctx_switches()
+        cpu_time_after = process.cpu_times()
 
-    elapsed = time.perf_counter() - start
+        total_ops = self.config.num_threads * self.config.iterations
 
-    cpu_after = psutil.cpu_percent(interval=None)
+        context_switches = (
+            (ctx_after.voluntary - ctx_before.voluntary)
+            + (ctx_after.involuntary - ctx_before.involuntary)
+        )
+        cpu_time = (
+            (cpu_time_after.user - cpu_time_before.user)
+            + (cpu_time_after.system - cpu_time_before.system)
+        )
 
-    ctx_after = process.num_ctx_switches()
-    cpu_time_after = process.cpu_times()
-    print(f"ctx_after: {ctx_after}")
-    print(f"ctx_after: {ctx_after}")
+        return {
+            "elapsed": elapsed,
+            "total_ops": total_ops,
 
-    latencies = metrics["latencies"]
+            "task_p50_ms": statistics.median(latencies),
+            "task_p95_ms": statistics.quantiles(latencies, n=100)[94],
+            "task_p99_ms": statistics.quantiles(latencies, n=100)[98],
 
-    context_switches = (
-        (ctx_after.voluntary - ctx_before.voluntary)
-        +
-        (ctx_after.involuntary - ctx_before.involuntary)
-    )
+            "ops_per_sec": total_ops / elapsed,
 
-    cpu_time = (
-        (cpu_time_after.user - cpu_time_before.user)
-        +
-        (cpu_time_after.system - cpu_time_before.system)
-    )
+            "queue_depth": peak_workers[0],
 
-    total_ops = num_threads * iterations
+            "cpu_time_sec": cpu_time,
+            "context_switches": context_switches,
+        }
 
-    return {
-        "elapsed": elapsed,
-
-        "task_p50_ms": statistics.median(latencies),
-        "task_p95_ms": statistics.quantiles(
-            latencies,
-            n=100
-        )[94],
-        "task_p99_ms": statistics.quantiles(
-            latencies,
-            n=100
-        )[98],
-
-        "ops_per_sec": total_ops / elapsed,
-
-        # application-level queue pressure
-        "queue_depth": peak_workers,
-
-        # CPU measurements
-        "cpu_percent": cpu_after,
-        "cpu_time_sec": cpu_time,
-
-        # scheduler pressure
-        "context_switches": context_switches,
-    }
+    @staticmethod
+    def start_and_join_threads(threads):
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
