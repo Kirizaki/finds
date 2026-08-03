@@ -32,7 +32,7 @@ def test_thread_contention_buggy_is_slower(thread_contention_runner):
     """
     Buggy path should be slower then fixed due to contention.
 
-    Repeate each measurement 10 times and compare medians to reduce noise.
+    Repeat each measurement 10 times and compare medians to reduce noise.
     """
     fixed = thread_contention_runner(num_threads=8, increments_per_thread=50000, buggy=False, iterations=10, prod_mode=True)
     buggy = thread_contention_runner(num_threads=8, increments_per_thread=50000, buggy=True, iterations=10, prod_mode=True)
@@ -164,7 +164,7 @@ def test_io_fixed_queue_depth_stays_bounded(io_contention_runner):
     Regression: fixed path must never exceed max_writers concurrency.
     
     Previously, queue depth could match num_threads when the semaphore
-    was accidentally byppased. This guards againts re-introducing
+    was accidentally bypassed. This guards against re-introducing
     unbounded writer concurrency in the fixed case.
     """
     num_threads = 16

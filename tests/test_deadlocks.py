@@ -90,7 +90,7 @@ def test_deadlocks_fixed_scales_without_deadlock(deadlock_runner, tasks_num):
     Scalability: fixed lock ordering stays deadlock-free as task count grows.
     
     Increasing concurrent upload + cleanup pairs raises the probability
-    of lock acquisition overlap. The fixed path must coomplete all tasks
+    of lock acquisition overlap. The fixed path must complete all tasks
     with zero timeouts at every scale - well... wide scale, but not every. :)"""
     stats = deadlock_runner(tasks_num=tasks_num, prod_mode=True)
 

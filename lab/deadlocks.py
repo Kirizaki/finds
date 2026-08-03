@@ -50,7 +50,7 @@ class UploadBackend:
         Simulates background worker (ie. metadata update, quota recalc.)
 
         Args: buggy: if True:   lock metadata -> lock quota
-                     otherwise: lock qouta -> lock metadata
+                     otherwise: lock quota -> lock metadata
         """
         if self.buggy:
              first = self.metadata_lock

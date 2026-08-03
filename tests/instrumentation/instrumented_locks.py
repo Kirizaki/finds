@@ -42,7 +42,7 @@ class InstrumentedLockBase:
         same lock factory interface without timeout instrumentation.
     """
     LOCK_TIMEOUT: float = float(os.getenv("LOCK_TIMEOUT", "120"))
-    # by deafult disabled due to spammmmm
+    # by default disabled due to spam
     LOCK_VERBOSE: bool = False
 
     def __init__(self, name: str, lock):
