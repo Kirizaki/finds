@@ -1,0 +1,48 @@
+# finds - Copyright (c) 2026 Kirizaki
+
+[project]
+name = "finds"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = [
+    "psutil",
+    "pytest",
+    "pytest-html",
+    "pytest-mock",
+    "pytest-timeout",
+]
+
+[dependency-group]
+dev = [
+    "ruff",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+# 30 minutes default timeout per test
+timeout = 1800
+# HTML dashboard report
+adopts = "--html=results/report.html --self-contained-html"
+markers = [
+    # faults classes
+    "contentions: thread, i/o, and cpu contentions tests",
+    "deadlocks: circular-wait deadlocks tests",
+    "hazards: hazards / race condition (ie. TOCTOU) tests",
+    # test categories
+    "long: long-running tests",
+    "regression: guards against reintroduction of fixed bugs",
+    "scalability: verifies behavior under increasing load",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",  # line too long
+]
+
+[tool.ruff.lint.per-file-ignore]
+"tests/*" = ["F811"]  # allow fixtures redefinition in tests

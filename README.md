@@ -2,28 +2,36 @@
 
 `finds` (**F**ault **IN**jection & **D**etection **S**uite) is a pytest-based framework for injecting common concurrency and performance faults and reliably detecting them.
 
+## Prerequisities
+
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management.
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
 ## Quick Start
 
 ```bash
-# install deps
-pip install -r requirements.txt
+# install deps (creates .venv automatically)
+uv sync
 
 # run all fast tests
-python -m pytest
+uv run pytest
 
 # run with verbose output (includes print diagnostics)
-python -m pytest -s -v
+uv run pytest -s -v
 
 # run specific fault class
-python -m pytest -m contentions
-python -m pytest -m deadlocks
-python -m pytest -m hazards
+uv run pytest -m contentions
+uv run pytest -m deadlocks
+uv run pytest -m hazards
 
 # include long-running tests
-python -m pytest -m "not stress"
+uv run pytest -m "not stress"
 
 # stress tests only
-python -m pytest -m stress
+uv run pytest -m stress
 ```
 
 ## Toggling Faults
@@ -75,6 +83,8 @@ tests/                          # detection suite (Part 2)
     utils.py                    # shared helpers (start_and_join, percentile)
 
 conftest.py                     # root: pytest summary report hook
+pyproject.toml                  # project config (deps, pytest, ruff)
+uv.lock                         # planned dependency lockfile
 
 .github/workflows/              # CI pipelines
   pr_tests.yml                  # PR gate (fast tests only)
@@ -120,7 +130,7 @@ An interactive HTML report is generated automatically at `results/report.html` a
 
 To view it locally after a test run:
 ```bash
-python -m pytest                       # generates results/report.html
+uv run pytest                          # generates results/report.html
 open results/report.html               # macOS
 xdg-open results/report.html           # Linux
 start results\report.html              # Windows

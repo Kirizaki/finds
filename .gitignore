@@ -1,5 +1,8 @@
 # finds - Copyright (c) 2026 Kirizaki
 
+# venv
+.venv/
+
 # lab artifacts
 lab/artifacts
 
