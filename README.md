@@ -51,36 +51,36 @@ Additionally, each runner accepts `prod_mode=True/False` to switch between produ
 ## Structure
 
 ```
-lab/                              # fault scenario stubs (Part 1)
-  contentions.py                  # thread, I/O, CPU contention
-  deadlocks.py                   # circular-wait deadlock
-  hazards.py                     # TOCTOU race condition
-  io_stats.py                    # thread-safe I/O metrics collector
+lab/                        # fault scenario stubs (Part 1)
+  contentions.py            # thread, I/O, CPU contention
+  deadlocks.py              # circular-wait deadlock
+  hazards.py                # TOCTOU race condition
+  io_stats.py               # thread-safe I/O metrics collector
   utils/
-    locks.py                     # production lock factory
-    threads.py                   # production thread factory
+    locks.py                # production lock factory
+    threads.py              # production thread factory
 
-tests/                            # detection suite (Part 2)
-  conftest.py                    # runner fixtures (thread/IO/CPU/deadlock/hazard)
-  test_contentions.py            # contention detection tests
-  test_deadlocks.py              # deadlock detection tests
-  test_hazards.py                # TOCTOU detection tests
-  contention_helpers.py          # worker wrappers and stats gatherers
-  deadlock_helpers.py            # deadlock worker wrappers and stats
-  hazard_helpers.py              # hazard worker wrappers and stats
+tests/                      # detection suite (Part 2)
+  conftest.py               # runner fixtures (thread/IO/CPU/deadlock/hazard)
+  test_contentions.py       # contention detection tests
+  test_deadlocks.py         # deadlock detection tests
+  test_hazards.py           # TOCTOU detection tests
+  contention_helpers.py     # worker wrappers and stats gatherers
+  deadlock_helpers.py       # deadlock worker wrappers and stats
+  hazard_helpers.py         # hazard worker wrappers and stats
   instrumentation/
-    instrumented_locks.py        # lock wrappers with timeout + metrics
-    instrumented_thread.py       # thread wrapper with timing metrics
-    thread_metrics.py            # per-thread metrics dataclass
-    utils.py                     # shared helpers (start_and_join, percentile)
+    instrumented_locks.py   # lock wrappers with timeout + metrics
+    instrumented_thread.py  # thread wrapper with timing metrics
+    thread_metrics.py       # per-thread metrics dataclass
+    utils.py                # shared helpers (start_and_join, percentile)
 
-conftest.py                      # root: pytest summary report hook
+conftest.py                 # root: pytest summary report hook
 
-.github/workflows/               # CI pipelines
-  pr_tests.yml                   # PR gate (fast tests only)
-  nightly_tests.yml              # nightly (all except stress)
-  stress_tests.yml               # weekend stress runs
-  full_scope_tests.yml           # manual full-scope trigger
+.github/workflows/          # CI pipelines
+  pr_tests.yml              # PR gate (fast tests only)
+  nightly_tests.yml         # nightly (all except stress)
+  stress_tests.yml          # weekend stress runs
+  full_scope_tests.yml      # manual full-scope trigger
 ```
 
 ## Fault Scenarios and Detection Methods
