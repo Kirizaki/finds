@@ -3,7 +3,6 @@
 #   1. Classic circular-wait deadlocks (e.g., inconsistent lock ordering).
 
 import time
-import multiprocessing as mp
 
 
 class UploadBackend:

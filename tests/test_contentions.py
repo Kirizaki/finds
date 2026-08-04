@@ -1,9 +1,9 @@
 # finds - Copyright (c) 2026 Kirizaki
 
+import os
 import statistics
 
 import pytest
-import os
 
 
 @pytest.mark.contentions
@@ -19,7 +19,7 @@ def test_thread_contention_fixed_is_correct(thread_contention_runner):
 def test_thread_contention_buggy_is_correct(thread_contention_runner):
     """
     Buggy path should also produce correct totals.
-    
+
     NOTE: The contention affects SPEED, not CORRECTNESS.
     """
     stats = thread_contention_runner(num_threads=8, increments_per_thread=50000, buggy=True, prod_mode=True)
@@ -162,7 +162,7 @@ def test_io_contention_buggy_is_correct(io_contention_runner):
 def test_io_fixed_queue_depth_stays_bounded(io_contention_runner):
     """
     Regression: fixed path must never exceed max_writers concurrency.
-    
+
     Previously, queue depth could match num_threads when the semaphore
     was accidentally bypassed. This guards against re-introducing
     unbounded writer concurrency in the fixed case.

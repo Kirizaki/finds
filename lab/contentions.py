@@ -4,17 +4,18 @@
 # 2. i/o contention:    oversubscribed storage writers
 # 3. cpu contention:    oversubscribed compute workers
 
-import os
 import hashlib
+import os
+import statistics
 import threading
 import time
-import psutil
-import statistics
-from pathlib import Path
-from lab.io_stats import IOStats
-from threading import Semaphore
 from dataclasses import dataclass
+from pathlib import Path
+from threading import Semaphore
 
+import psutil
+
+from lab.io_stats import IOStats
 
 ###### thread contention ######
 

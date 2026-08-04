@@ -1,9 +1,9 @@
 # finds - Copyright (c) 2026 Kirizaki
 
-import os
-import time
-import threading
 import multiprocessing as mp
+import os
+import threading
+import time
 
 from tests.instrumentation.thread_metrics import current_metrics
 

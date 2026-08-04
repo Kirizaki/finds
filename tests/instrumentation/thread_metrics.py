@@ -1,11 +1,9 @@
 # finds - Copyright (c) 2026 Kirizaki
 
-import time
 import threading
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-
-from tests.instrumentation.utils import get_percentile
 
 # share by all threads - that's the WIN of threads vs Processes ;)
 _thread_local = threading.local()

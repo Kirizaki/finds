@@ -1,6 +1,7 @@
 # finds - Copyright (c) 2026 Kirizaki
 
 import os
+
 import pytest
 
 
@@ -50,7 +51,7 @@ def test_deadlocks_wrong_order_debug_output(deadlock_runner, mocker):
     tasks_num = 50
     stats = deadlock_runner(tasks_num=tasks_num, prod_mode=False, buggy=True)
 
-    print(f"\n  Deadlock debug output:")
+    print("\n  Deadlock debug output:")
     print(f"    uploads completed:  {stats['upload_completed']}/{tasks_num}")
     print(f"    cleanups completed: {stats['cleanup_completed']}/{tasks_num}")
     print(f"    timeouts (deadlocks detected): {stats['timeouts']}")
@@ -88,7 +89,7 @@ def test_deadlocks_fixed_completes_without_deadlock(deadlock_runner, prod_mode):
 def test_deadlocks_fixed_scales_without_deadlock(deadlock_runner, tasks_num):
     """
     Scalability: fixed lock ordering stays deadlock-free as task count grows.
-    
+
     Increasing concurrent upload + cleanup pairs raises the probability
     of lock acquisition overlap. The fixed path must complete all tasks
     with zero timeouts at every scale - well... wide scale, but not every. :)"""

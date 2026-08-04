@@ -2,7 +2,6 @@
 
 # root conftest: pytest hooks (report summary, HTML dashboard, JUnit XML)
 
-import time
 from collections import defaultdict
 
 import pytest

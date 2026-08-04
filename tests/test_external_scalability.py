@@ -9,16 +9,15 @@ the same classes of bugs (TOCTOU race, deadlock, contention) to
 show the detectors generalise beyond the toy examples.
 """
 
+import multiprocessing as mp
 import threading
 import time
-import multiprocessing as mp
 
 import pytest
 
-from tests.instrumentation.instrumented_locks import instrumented_lock_factory, TimeoutExpired
+from tests.instrumentation.instrumented_locks import TimeoutExpired, instrumented_lock_factory
 from tests.instrumentation.instrumented_thread import InstrumentedThreadFactory
 from tests.instrumentation.utils import start_and_join_workers
-
 
 # ---- mock external service: inventory reservation ----
 
