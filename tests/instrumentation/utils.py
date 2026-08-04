@@ -1,8 +1,8 @@
 # finds - Copyright (c) 2026 Kirizaki
 
-import threading
 import multiprocessing as mp
 import statistics
+import threading
 
 
 def start_and_join_workers(start_event: mp.Event, workers: list[threading.Thread | mp.Process]):

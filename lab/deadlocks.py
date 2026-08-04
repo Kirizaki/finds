@@ -3,7 +3,6 @@
 #   1. Classic circular-wait deadlocks (e.g., inconsistent lock ordering).
 
 import time
-import multiprocessing as mp
 
 
 class UploadBackend:
@@ -12,15 +11,13 @@ class UploadBackend:
         - quota_lock
         - metadata_lock
 
-    Wrong lock order
+    Buggy (circular wait):
         - upload_request: quota -> metadata
         - cleanup_request: metadata -> quota
 
-    Correct lock order:
+    Fixed (consistent order):
         - upload_request: quota -> metadata
         - cleanup_request: quota -> metadata
-        
-        NOTE: Creating circular wait.
     """
     def __init__(self, lock_factory, buggy: bool = False):
         # dependency injection (production | instrumented/debug)
@@ -41,7 +38,7 @@ class UploadBackend:
 
     def _reserve_quota(self, _):
         # simulate quota reservation with metadata_size
-            time.sleep(0.01)
+        time.sleep(0.01)
 
     def _update_metadata(self, _):
         # simulate metadata upload
@@ -52,7 +49,7 @@ class UploadBackend:
         Simulates background worker (ie. metadata update, quota recalc.)
 
         Args: buggy: if True:   lock metadata -> lock quota
-                     otherwise: lock qouta -> lock metadata
+                     otherwise: lock quota -> lock metadata
         """
         if self.buggy:
              first = self.metadata_lock
@@ -69,7 +66,7 @@ class UploadBackend:
 
     def _cleanup_metadata(self, _):
         # simulate metadata update
-            time.sleep(0.03)
+        time.sleep(0.03)
 
     def _recalculate_quota(self, _):
         # simulate quota recalculation

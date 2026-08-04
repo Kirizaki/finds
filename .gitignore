@@ -1,11 +1,15 @@
 # finds - Copyright (c) 2026 Kirizaki
 
+# venv
+.venv/
+
 # lab artifacts
 lab/artifacts
 
 # pytest
 *__pycache__
 *.pytest_cache
+results/
 
 # lint
 *.ruff_cache

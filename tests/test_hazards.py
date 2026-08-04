@@ -80,3 +80,38 @@ def test_toctou_upload_quota_stress(hazard_runner):
     # race must be consistently reproducible under sustained load
     assert total_violations >= rounds
 
+@pytest.mark.hazards
+@pytest.mark.regression
+def test_toctou_fixed_quota_never_exceeded(hazard_runner):
+    """
+    Regression: the fixed path must never allow quota oversubscription.
+
+    Previously, removing the lock from _upload_fixed or reintroducing
+    the sleep window allowed the TOCTOU race to resurface. This test
+    runs multiple rounds to guard against that regression.
+    """
+    for _ in range(10):
+        stats = hazard_runner(num_uploads=200, upload_size_mb=5, quota_mb=100,
+                              buggy=False, prod_mode=True)
+
+        assert stats["used_mb"] <= stats["quota_mb"], (
+            f"Quota exceeded: {stats['used_mb']} > {stats['quota_mb']} - "
+            "TOCTOU fix may have regressed")
+        assert stats["quota_violations"] == 0
+        assert stats["accepted"] + stats["rejected"] == 200
+
+@pytest.mark.hazards
+@pytest.mark.regression
+def test_toctou_buggy_always_detected(hazard_runner):
+    """
+    Regression: the buggy path must always produce quota violations.
+    If this test passes with zero violations, the fault injection
+    or the race window may have been inadvertently fixed.
+    """
+    for _ in range(5):
+        stats = hazard_runner(num_uploads=100, upload_size_mb=10, quota_mb=100,
+                              buggy=True, prod_mode=True)
+
+        assert stats["quota_violations"] >= 1, (
+            "TOCTOU race was not triggered - fault injection may be broken")
+

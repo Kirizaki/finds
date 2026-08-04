@@ -2,19 +2,20 @@
 
 # 1. Thread contention: hot-lock serialisation bottleneck
 # 2. i/o contention:    oversubscribed storage writers
-# 3. cpu contention:    oversubscribed compute workeers
+# 3. cpu contention:    oversubscribed compute workers
 
-import os
 import hashlib
+import os
+import statistics
 import threading
 import time
-import psutil
-import statistics
-from pathlib import Path
-from lab.io_stats import IOStats
-from threading import Semaphore
 from dataclasses import dataclass
+from pathlib import Path
+from threading import Semaphore
 
+import psutil
+
+from lab.io_stats import IOStats
 
 ###### thread contention ######
 
@@ -27,7 +28,7 @@ class SharedCounterConfig:
 
 class SharedCounter:
     """
-    Simulates shared counter service (ie. distributed databese writes).
+    Simulates shared counter service (ie. distributed database writes).
 
     Buggy: single global lock serialises all threads (hot-lock)
     Fixed: each thread works on private counters, merged at end (sharding)
@@ -38,7 +39,7 @@ class SharedCounter:
           Long-story short, there are cases where we want to Cache frequently used
           data to avoid frequent heavy I/O actions.
           ie. scanning binary tree in RAID system (leafs can hold pointers to the same data)
-          Buggy: Global lock for checking existance of leaf in cache & reading data
+          Buggy: Global lock for checking existence of leaf in cache & reading data
                  ie. leaf contains pointer to specific tier/disk/file, so we need to do heavy IO.
           Fixed: Global lock only to set placeholder - minimal contention,
                  and additional lock per leaf, for heavy IO.
@@ -91,7 +92,7 @@ class SharedCounter:
             threads = [self.thread_factory(target=_worker, args=(t,)) for t in range(self.config.num_threads)]
             SharedCounter.start_and_join_threads(threads)
 
-            # merge pet-thread results
+            # merge per-thread results
             for local in thread_counters:
                 if local:
                     for b in range(self.config.num_buckets):

@@ -1,26 +1,37 @@
 # finds - Copyright (c) 2026 Kirizaki
 
+import multiprocessing as mp
 import os
 import queue
-import multiprocessing as mp
 
 import pytest
 
-from lab.contentions import SharedCounter, SharedCounterConfig, StorageWriterPool, StorageWriterPoolConfig, clean_artifacts, ComputeWorkerPool, ComputeWorkerPoolConfig
-from tests.instrumentation.instrumented_thread import InstrumentedThreadFactory
-from lab.utils.locks import production_lock_factory
-from lab.utils.threads import production_thread_factory
+from lab.contentions import (
+    ComputeWorkerPool,
+    ComputeWorkerPoolConfig,
+    SharedCounter,
+    SharedCounterConfig,
+    StorageWriterPool,
+    StorageWriterPoolConfig,
+    clean_artifacts,
+)
 from lab.deadlocks import UploadBackend
 from lab.hazards import UploadQuotaPool, UploadQuotaPoolConfig
-
-import tests.instrumentation.instrumented_locks as instrumented_locks
-from tests.instrumentation.instrumented_locks import test_lock_factory
-from tests.instrumentation.utils import start_and_join_workers
-from tests.contention_helpers import thread_contention_worker, gather_thread_contention_stats
-from tests.contention_helpers import io_contention_worker, gather_io_contention_stats
-from tests.contention_helpers import cpu_contention_worker, gather_cpu_contention_stats
+from lab.utils.locks import production_lock_factory
+from lab.utils.threads import production_thread_factory
+from tests.contention_helpers import (
+    cpu_contention_worker,
+    gather_cpu_contention_stats,
+    gather_io_contention_stats,
+    gather_thread_contention_stats,
+    io_contention_worker,
+    thread_contention_worker,
+)
 from tests.deadlock_helpers import build_tasks, gather_stats
-from tests.hazard_helpers import hazard_worker, gather_hazard_stats
+from tests.hazard_helpers import gather_hazard_stats, hazard_worker
+from tests.instrumentation.instrumented_locks import instrumented_lock_factory
+from tests.instrumentation.instrumented_thread import InstrumentedThreadFactory
+from tests.instrumentation.utils import start_and_join_workers
 
 # shared helpers
 
@@ -41,7 +52,7 @@ def _run_contention(backend_factory, worker_fn, gather_fn, iterations=1):
 @pytest.fixture
 def thread_contention_runner():
     def run(num_threads=8, increments_per_thread=5000, num_buckets=64, prod_mode=False, buggy=False, iterations=1):
-        lock_factory = production_lock_factory if prod_mode else test_lock_factory
+        lock_factory = production_lock_factory if prod_mode else instrumented_lock_factory
 
         def make_backend():
             config = SharedCounterConfig(num_threads, increments_per_thread, num_buckets)
@@ -109,14 +120,23 @@ def deadlock_runner():
         # shared stats across all tasks (processes)
         results_queue = mp.Queue()
 
+        # shared contention log for wait-for graph edges
+        contention_log = mp.Queue()
+
         # specified factory
         if prod_mode:
             factory = production_lock_factory
         else:
-            factory = test_lock_factory
+            factory = instrumented_lock_factory
 
         # production (stub) code to be tested
         backend = UploadBackend(lock_factory=factory,buggy=buggy)
+
+        # attach contention log to instrumented locks
+        if hasattr(backend.quota_lock, '_contention_log'):
+            backend.quota_lock._contention_log = contention_log
+        if hasattr(backend.metadata_lock, '_contention_log'):
+            backend.metadata_lock._contention_log = contention_log
 
         # tasks start barrier event
         start_event = mp.Event()
@@ -128,8 +148,12 @@ def deadlock_runner():
         # run all tasks
         start_and_join_workers(start_event, tasks)
 
-        # return gathered results
-        return gather_stats(results_queue)
+        # return gathered results with lock metrics when instrumented
+        if not prod_mode:
+            return gather_stats(results_queue, quota_lock=backend.quota_lock,
+                                metadata_lock=backend.metadata_lock, contention_log=contention_log)
+
+        return gather_stats(results_queue, contention_log=contention_log)
 
     return run
 

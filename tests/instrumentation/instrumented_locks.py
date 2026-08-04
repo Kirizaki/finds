@@ -1,14 +1,14 @@
 # finds - Copyright (c) 2026 Kirizaki
 
-import os
-import time
-import threading
 import multiprocessing as mp
+import os
+import threading
+import time
 
 from tests.instrumentation.thread_metrics import current_metrics
 
 
-def test_lock_factory(name: str):
+def instrumented_lock_factory(name: str):
     if name == "counter":
         return InstrumentedThreadLock(name)
     elif name in ["quota", "metadata"]:
@@ -18,7 +18,14 @@ def test_lock_factory(name: str):
 
 
 class TimeoutExpired(Exception):
-    pass
+    def __init__(self, message, waited_on=None, held_locks=None):
+        super().__init__(message)
+        self.waited_on = waited_on
+        self.held_locks = held_locks or []
+
+
+# per-process tracking of currently held locks (process-local via os.getpid)
+_held_locks: dict[int, list[str]] = {}
 
 
 class InstrumentedLockBase:
@@ -42,34 +49,48 @@ class InstrumentedLockBase:
         same lock factory interface without timeout instrumentation.
     """
     LOCK_TIMEOUT: float = float(os.getenv("LOCK_TIMEOUT", "120"))
-    # by deafult disabled due to spammmmm
+    # by default disabled due to spam
     LOCK_VERBOSE: bool = False
 
     def __init__(self, name: str, lock):
         self.name: str = name
         self._lock = lock
+        self._contention_log: mp.Queue | None = None
 
     def acquire(self, *args, **kwargs):
+        pid = os.getpid()
+        held = _held_locks.get(pid, [])
         start = time.perf_counter()
         if self.LOCK_VERBOSE:
-            print(f"[{os.getpid()}] WAIT {self.name}")
+            print(f"[{pid}] WAIT {self.name}")
+
+        # record wait-for edges before blocking
+        if held and self._contention_log is not None:
+            for h in held:
+                self._contention_log.put((h, self.name))
 
         kwargs["timeout"] = self.LOCK_TIMEOUT
         acquired = self._lock.acquire(*args, **kwargs)
 
         waited = time.perf_counter() - start
         if not acquired:
-            print(f"[{os.getpid()}] LOCK_TIMEOUT {self.name} after {waited:.3f}s")
+            held = list(_held_locks.get(pid, []))
+            print(f"[{pid}] LOCK_TIMEOUT {self.name} after {waited:.3f}s")
             raise TimeoutExpired(f"Timeout acquiring {self.name}")
 
+        _held_locks.setdefault(pid, []).append(self.name)
         if self.LOCK_VERBOSE:
-            print(f"[{os.getpid()}] ACQUIRED {self.name} wait={waited:.6f}s")
+            print(f"[{pid}] ACQUIRED {self.name} wait={waited:.6f}s")
         return True
 
     def release(self):
+        pid = os.getpid()
         if self.LOCK_VERBOSE:
-            print(f"[{os.getpid()}] RELEASE {self.name}")
+            print(f"[{pid}] RELEASE {self.name}")
         self._lock.release()
+        held = _held_locks.get(pid, [])
+        if self.name in held:
+            held.remove(self.name)
 
     def __enter__(self):
         self.acquire()

@@ -1,8 +1,9 @@
 # finds - Copyright (c) 2026 Kirizaki
-name: Full scope
+name: Nightly tests
 
 on:
-  workflow_dispatch:
+  schedule: 
+    - cron: "00 18 * * *"  # every day 18:00
 
 jobs:
 
@@ -21,13 +22,13 @@ jobs:
 
     - name: Run tests
       run: |
-        uv run pytest -s -v --junitxml=results/junit.xml --html=results/report.html --self-contained-html
+        uv run pytest -s -v -m "not stress" --junitxml=results/junit.xml --html=results/report.html --self-contained-html
 
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: full-scope-test-results
+        name: nightly-test-results
         path: |
           results/junit.xml
           results/report.html

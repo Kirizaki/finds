@@ -15,11 +15,13 @@ def backend_endpoint_wrapper(worker_type, target, results_queue):
             "worker": worker_type,
             "status": "success"
         })
-    except TimeoutExpired:
+    except TimeoutExpired as e:
         # cover suspected deadlocks (buggy)
         results_queue.put({
             "worker": worker_type,
-            "status": "timeout"
+            "status": "timeout",
+            "waited_on": e.waited_on,
+            "held_locks": e.held_locks,
         })
     except Exception as e:
         # cover any future regressions
@@ -44,12 +46,17 @@ def build_tasks(num_tasks, start_event, type, target, results_queue):
         ]
 
 
-def gather_stats(results_queue, quota_lock: InstrumentedMultiprocessingLock = None, metadata_lock: InstrumentedMultiprocessingLock = None):
+def gather_stats(results_queue, quota_lock: InstrumentedMultiprocessingLock = None,
+                 metadata_lock: InstrumentedMultiprocessingLock = None, contention_log: mp.Queue = None):
     stats = {
         "upload_completed": 0,
         "cleanup_completed": 0,
         "timeouts": 0,
+        "upload_timeouts": 0,
+        "cleanup_timeouts": 0,
         "errors": 0,
+        # wait-for graph edges: list of (held_lock, waited_on) tuples
+        "wait_for_edges": [],
         "quota_lock_wait_latencies": [],
         "metadata_lock_wait_latencies": [],
         "quota_lock_wait_p99_ms": 0,
@@ -67,6 +74,13 @@ def gather_stats(results_queue, quota_lock: InstrumentedMultiprocessingLock = No
                     stats["cleanup_completed"] += 1
             elif result["status"] == "timeout":
                 stats["timeouts"] += 1
+                if result["worker"] == "upload":
+                    stats["upload_timeouts"] += 1
+                else:
+                    stats["cleanup_timeouts"] += 1
+                # records wait-for graph edges from timeout: held -> waited_on
+                for held in result.get("held_locks", []):
+                    stats["wait_for_edges"].append((held, result.get("waited_on")))
             elif result["status"] == "error":
                 stats["errors"] += 1
         elif "lock_wait_latencies" in result:  # keep just for future benchmark
@@ -74,6 +88,10 @@ def gather_stats(results_queue, quota_lock: InstrumentedMultiprocessingLock = No
                 stats["quota_lock_wait_latencies"].append(result["lock_wait_latencies"]["quota"])
             elif "metadata" in result["lock_wait_latencies"]:
                 stats["metadata_lock_wait_latencies"].append(result["lock_wait_latencies"]["metadata"])
+    # drain contention log: edges recorded at wait-time (before blocking)
+    if contention_log is not None:
+        while not contention_log.empty():
+            stats["wait_for_edges"].append(contention_log.get_nowait())
 
     # keep just for future benchmark
     if quota_lock:
