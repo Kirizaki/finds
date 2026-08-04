@@ -39,7 +39,7 @@ target-version = "py312"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I"]
+select = ["E", "F", "W", "I"]  # accordingly: PEP8 style errors, logical/code issues, PEP8 warnings, import sorting
 ignore = [
     "E501",  # line too long
 ]
