@@ -75,7 +75,7 @@ def test_deadlocks_circular_wait(deadlock_runner, mocker):
     """
     Prove that the buggy path produces a real circular-wait deadlock
     by detecting a cycle in the wait-for graph.
-    
+
     Each timeoud-out process reports which lock it held and which lock
     it was waiting on. A circular wait exists when:
         - process A: held quota,        waited on metadata
