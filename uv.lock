@@ -23,6 +23,11 @@ dependencies = [
     { name = "pytest-timeout" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest-html" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "psutil" },
@@ -31,6 +36,9 @@ requires-dist = [
     { name = "pytest-mock" },
     { name = "pytest-timeout" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest-html", specifier = ">=4.2.0" }]
 
 [[package]]
 name = "iniconfig"
