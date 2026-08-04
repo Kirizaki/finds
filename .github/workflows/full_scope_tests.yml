@@ -21,7 +21,7 @@ jobs:
 
     - name: Run tests
       run: |
-        uv run pytest -s -v --junitxml=results/junit.xml
+        uv run pytest -s -v --junitxml=results/junit.xml --html=results/report.html --self-contained-html
 
     - name: Upload test results
       if: always()
