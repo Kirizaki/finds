@@ -120,6 +120,9 @@ def deadlock_runner():
         # shared stats across all tasks (processes)
         results_queue = mp.Queue()
 
+        # shared contention log for wait-for graph edges
+        contention_log = mp.Queue()
+
         # specified factory
         if prod_mode:
             factory = production_lock_factory
@@ -128,6 +131,12 @@ def deadlock_runner():
 
         # production (stub) code to be tested
         backend = UploadBackend(lock_factory=factory,buggy=buggy)
+
+        # attach contention log to instrumented locks
+        if hasattr(backend.quota_lock, '_contention_log'):
+            backend.quota_lock._contention_log = contention_log
+        if hasattr(backend.metadata_lock, '_contention_log'):
+            backend.metadata_lock._contention_log = contention_log
 
         # tasks start barrier event
         start_event = mp.Event()
@@ -141,10 +150,10 @@ def deadlock_runner():
 
         # return gathered results with lock metrics when instrumented
         if not prod_mode:
-            return gather_stats(results_queue,
-                                quota_lock=backend.quota_lock,
-                                metadata_lock=backend.metadata_lock)
-        return gather_stats(results_queue)
+            return gather_stats(results_queue, quota_lock=backend.quota_lock,
+                                metadata_lock=backend.metadata_lock, contention_log=contention_log)
+
+        return gather_stats(results_queue, contention_log=contention_log)
 
     return run
 

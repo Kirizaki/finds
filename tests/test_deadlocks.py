@@ -71,6 +71,47 @@ def test_deadlocks_wrong_order_debug_output(deadlock_runner, mocker):
     assert completed == tasks_num * 2
 
 @pytest.mark.deadlocks
+def test_deadlocks_circular_wait(deadlock_runner, mocker):
+    """
+    Prove that the buggy path produces a real circular-wait deadlock
+    by detecting a cycle in the wait-for graph.
+    
+    Each timeoud-out process reports which lock it held and which lock
+    it was waiting on. A circular wait exists when:
+        - process A: held quota,        waited on metadata
+        - process B: held metadata,     waited on quota
+
+    Uses small batches (4 tasks) so both upload and cleanup worksers
+    reach the nested-lock phase before contention overwhelms them.
+    Multiple rounds accumulate edges until the cycle is found.
+    """
+    mocker.patch.dict(os.environ, {"LOCK_TIMEOUT": "1.0"})
+    all_edges = set()
+
+    for _ in range(10):
+        stats = deadlock_runner(tasks_num=4, prod_mode=False, buggy=True)
+        all_edges.update(stats["wait_for_edges"])
+
+        has_cycle = any((b, a) in all_edges for a, b in all_edges)
+        if has_cycle:
+            break
+
+    assert has_cycle, (
+        f"No circular wait detected in wait-for graph after 10 rounds.\n"
+        f"  edges: {all_edges}\n"
+        f"  Expected both (quota, metadata) and (metadata, quota)."
+    )
+    assert stats["errors"] == 0
+
+    # proof: print the cycle that proves deadlock:
+    cycle_edges = sorted((a, b) for a, b in all_edges if (b, a) in all_edges)
+    print("\n  Circular-wait deadlock proven via wait-for graph:")
+    for a, b in sorted(all_edges):
+        if (b, a) in all_edges:
+            print(f"    process X: held {a:<10s} waited on {b}")
+    print(f"    cycle: {cycle_edges[0][0]} -> {cycle_edges[0][1]} -> {cycle_edges[0][0]}")
+
+@pytest.mark.deadlocks
 @pytest.mark.parametrize("prod_mode", [True, False])
 def test_deadlocks_fixed_completes_without_deadlock(deadlock_runner, prod_mode):
     tasks_num = 50

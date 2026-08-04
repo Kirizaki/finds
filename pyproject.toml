@@ -27,6 +27,7 @@ markers = [
     "long: long-running tests",
     "regression: guards against reintroduction of fixed bugs",
     "scalability: verifies behavior under increasing load",
+    "stress: resource saturation tests",
 ]
 
 [tool.ruff]
