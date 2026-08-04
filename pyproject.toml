@@ -12,11 +12,6 @@ dependencies = [
     "pytest-timeout",
 ]
 
-[dependency-group]
-dev = [
-    "ruff",
-]
-
 [tool.pytest.ini_options]
 pythonpath = ["."]
 # 30 minutes default timeout per test
@@ -50,4 +45,5 @@ ignore = [
 [dependency-groups]
 dev = [
     "pytest-html>=4.2.0",
+    "ruff",
 ]
