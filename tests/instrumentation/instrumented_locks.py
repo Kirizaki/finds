@@ -50,7 +50,7 @@ class InstrumentedLockBase:
     """
     LOCK_TIMEOUT: float = float(os.getenv("LOCK_TIMEOUT", "120"))
     # by default disabled due to spam
-    LOCK_VERBOSE: bool = True
+    LOCK_VERBOSE: bool = False
 
     def __init__(self, name: str, lock):
         self.name: str = name
