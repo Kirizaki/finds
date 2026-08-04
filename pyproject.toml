@@ -44,5 +44,5 @@ ignore = [
     "E501",  # line too long
 ]
 
-[tool.ruff.lint.per-file-ignore]
+[tool.ruff.lint.per-file-ignores]
 "tests/*" = ["F811"]  # allow fixtures redefinition in tests
