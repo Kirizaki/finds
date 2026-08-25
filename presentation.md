@@ -195,7 +195,8 @@ A **single global lock** serialises all threads — they spend most of their tim
 
 ### Buggy vs Fixed
 
-````carousel
+#### Buggy: Global Lock
+
 ```mermaid
 flowchart TD
     subgraph "Buggy: Global Lock"
@@ -207,7 +208,9 @@ flowchart TD
 
     style GL fill:#e74c3c,color:#fff
 ```
-<!-- slide -->
+
+#### Fixed: Private Counters
+
 ```mermaid
 flowchart TD
     subgraph "Fixed: Private Counters"
@@ -220,7 +223,6 @@ flowchart TD
 
     style M fill:#27ae60,color:#fff
 ```
-````
 
 ### Detection Metrics
 
