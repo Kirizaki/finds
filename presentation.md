@@ -173,7 +173,7 @@ has_cycle = any((b, a) in all_edges for a, b in all_edges)
 ### Key Test Assertions
 
 ```python
-# Buggy: deadlock detected
+# Buggy: potential deadlock detected
 assert stats["timeouts"] > 0
 assert stats["upload_completed"] + stats["cleanup_completed"] < tasks_num * 2
 
