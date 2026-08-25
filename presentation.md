@@ -1,7 +1,5 @@
 # finds — Fault INjection & Detection Suite
 
-### Presentation
-
 ---
 
 ## 🎯 Elevator Pitch
