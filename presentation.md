@@ -1,6 +1,6 @@
 # finds — Fault INjection & Detection Suite
 
-### Interview Presentation
+### Presentation
 
 ---
 
