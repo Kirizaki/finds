@@ -2,7 +2,7 @@
 
 ---
 
-## 🎯 Elevator Pitch
+## Summary
 
 **finds** is a pytest-based framework that **injects realistic concurrency faults** — deadlocks, contention, race conditions — into realistic service stubs and **reliably detects them** through instrumented locks, statistical analysis, and conservation-law assertions.
 
